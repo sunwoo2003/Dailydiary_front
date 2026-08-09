@@ -22,31 +22,22 @@ export const StatsScreen: React.FC = () => {
           fetchWeeklyTrend(),
         ]);
 
-        console.log("주간 평균 API 응답 데이터:", avgRes);
-        console.log("주간 추세 API 응답 데이터:", trendRes);
-
-        // 1. 주간 평균 점수 파싱 (다양한 백엔드 응답 형태 모두 지원)
+        // 1. 주간 평균 점수
         const avgValue =
           avgRes?.result?.total_weighted_average ??
           avgRes?.total_weighted_average ??
-          avgRes?.result?.average ??
-          avgRes?.average ??
           null;
 
         if (avgValue !== null) {
           setWeeklyAverage(avgValue);
         }
 
-        // 2. 주간 추세 데이터 파싱
-        const trendResult = trendRes?.result || trendRes;
-        if (
-          trendResult &&
-          Array.isArray(trendResult.dates) &&
-          Array.isArray(trendResult.weighted_scores)
-        ) {
+        // 2. 주간 추세 데이터
+        const trend = trendRes?.result || trendRes;
+        if (trend?.dates && trend?.weighted_scores) {
           setWeeklyData({
-            dates: trendResult.dates,
-            scores: trendResult.weighted_scores,
+            dates: trend.dates,
+            scores: trend.weighted_scores,
           });
         }
       } catch (e) {
@@ -59,7 +50,7 @@ export const StatsScreen: React.FC = () => {
     loadStats();
   }, []);
 
-  // SVG 그래프 좌표 계산 로직 (-10 ~ +10 점 기준)
+  // SVG 꺾은선 그래프 좌표 계산
   const renderLineChart = () => {
     const width = 280;
     const height = 180;
@@ -83,14 +74,13 @@ export const StatsScreen: React.FC = () => {
 
     const points = weeklyData.scores
       .map((score, idx) => (score !== null ? `${getEvX(idx)},${getEvY(score)}` : null))
-      .filter((p) => p !== null)
+      .filter(Boolean)
       .join(" ");
-
-    const yGridValues = [10, 5, 0, -5, -10];
 
     return (
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
-        {yGridValues.map((val) => {
+        {/* 가로 가이드 라인 및 Y축 라벨 */}
+        {[10, 5, 0, -5, -10].map((val) => {
           const y = getEvY(val);
           return (
             <g key={val}>
@@ -115,22 +105,20 @@ export const StatsScreen: React.FC = () => {
           );
         })}
 
-        {weeklyData.dates.map((date, idx) => {
-          const x = getEvX(idx);
-          const label = date.length > 5 ? date.slice(-5) : date;
-          return (
-            <text
-              key={idx}
-              x={x}
-              y={height - 5}
-              textAnchor="middle"
-              className="text-[10px] fill-slate-400 font-medium"
-            >
-              {label}
-            </text>
-          );
-        })}
+        {/* X축 날짜 라벨 */}
+        {weeklyData.dates.map((date, idx) => (
+          <text
+            key={idx}
+            x={getEvX(idx)}
+            y={height - 5}
+            textAnchor="middle"
+            className="text-[10px] fill-slate-400 font-medium"
+          >
+            {date.length > 5 ? date.slice(-5) : date}
+          </text>
+        ))}
 
+        {/* 꺾은선 */}
         {points && (
           <polyline
             fill="none"
@@ -142,15 +130,14 @@ export const StatsScreen: React.FC = () => {
           />
         )}
 
+        {/* 좌표 포인트 (점) */}
         {weeklyData.scores.map((score, idx) => {
           if (score === null) return null;
-          const cx = getEvX(idx);
-          const cy = getEvY(score);
           return (
             <circle
               key={idx}
-              cx={cx}
-              cy={cy}
+              cx={getEvX(idx)}
+              cy={getEvY(score)}
               r="4"
               className="fill-indigo-600 stroke-white stroke-2"
             />

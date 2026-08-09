@@ -294,3 +294,30 @@ export const analyzeAiFeedback = async (payload: AiAnalyzePayload) => {
   await new Promise((resolve) => setTimeout(resolve, 1000));
   return "오늘 선택하신 영역 점수와 작성해주신 메모를 바탕으로 분석을 마쳤어요! 수고하셨습니다. 👏";
 };
+
+// 10. 일기 삭제 (DELETE /api/diaries/{diary_id})
+export const deleteDiaryRecord = async (diaryId: number | string) => {
+  if (!USE_MOCK) {
+    try {
+      const res = await fetch(`${BASE_URL}/diaries/${diaryId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) return data;
+    } catch (e) {
+      console.warn("백엔드 일기 삭제 실패, 로컬 스토리지에서 처리합니다.", e);
+    }
+  }
+
+  // MOCK 및 네트워크 에러 시 Fallback
+  const existing = localStorage.getItem("haru_line_logs");
+  if (existing) {
+    const logs = JSON.parse(existing);
+    const filtered = logs.filter(
+      (item: any) => String(item.diary_id || item.id) !== String(diaryId)
+    );
+    localStorage.setItem("haru_line_logs", JSON.stringify(filtered));
+  }
+
+  return { status: 200, code: "DIARY_DELETE_SUCCESS", message: "일기가 삭제되었습니다." };
+};

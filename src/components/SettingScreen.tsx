@@ -20,17 +20,31 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 저장된 최신 키워드 및 가중치 동기화
   useEffect(() => {
     const loadSavedSettings = async () => {
       try {
-        const data = await fetchLatestDomain();
-        if (data) {
+        // 1. 먼저 로컬스토리지에 저장된 설정이 있다면 우선 적용 (가장 즉각적)
+        const savedLocal = localStorage.getItem("haru_line_settings");
+        if (savedLocal) {
+          const parsed = JSON.parse(savedLocal);
+          if (parsed.categories && parsed.categories.length === 5) {
+            setCategories(parsed.categories);
+            return;
+          }
+        }
+
+        // 2. 로컬스토리지에 없거나 백엔드 최신 데이터를 조회할 경우
+        const res = await fetchLatestDomain();
+        const data = res?.result || res;
+
+        if (data && data.domain1_name) {
           setCategories([
-            { id: 1, name: data.domain1_name, weight: data.weight1_value },
-            { id: 2, name: data.domain2_name, weight: data.weight2_value },
-            { id: 3, name: data.domain3_name, weight: data.weight3_value },
-            { id: 4, name: data.domain4_name, weight: data.weight4_value },
-            { id: 5, name: data.domain5_name, weight: data.weight5_value },
+            { id: 1, name: data.domain1_name, weight: Number(data.weight1_value || 1) },
+            { id: 2, name: data.domain2_name, weight: Number(data.weight2_value || 1) },
+            { id: 3, name: data.domain3_name, weight: Number(data.weight3_value || 1) },
+            { id: 4, name: data.domain4_name, weight: Number(data.weight4_value || 1) },
+            { id: 5, name: data.domain5_name, weight: Number(data.weight5_value || 1) },
           ]);
         }
       } catch (e) {
@@ -56,7 +70,6 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
     setIsSubmitting(true);
     try {
       await saveDomainSettings(categories);
-      // 저장된 categories를 상위 컴포넌트로 바로 전달
       onSaveComplete(categories);
     } catch (error) {
       console.error("설정 저장 에러:", error);
