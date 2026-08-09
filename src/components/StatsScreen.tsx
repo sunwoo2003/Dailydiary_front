@@ -22,14 +22,31 @@ export const StatsScreen: React.FC = () => {
           fetchWeeklyTrend(),
         ]);
 
-        if (avgRes?.result?.total_weighted_average !== undefined) {
-          setWeeklyAverage(avgRes.result.total_weighted_average);
+        console.log("주간 평균 API 응답 데이터:", avgRes);
+        console.log("주간 추세 API 응답 데이터:", trendRes);
+
+        // 1. 주간 평균 점수 파싱 (다양한 백엔드 응답 형태 모두 지원)
+        const avgValue =
+          avgRes?.result?.total_weighted_average ??
+          avgRes?.total_weighted_average ??
+          avgRes?.result?.average ??
+          avgRes?.average ??
+          null;
+
+        if (avgValue !== null) {
+          setWeeklyAverage(avgValue);
         }
 
-        if (trendRes?.result) {
+        // 2. 주간 추세 데이터 파싱
+        const trendResult = trendRes?.result || trendRes;
+        if (
+          trendResult &&
+          Array.isArray(trendResult.dates) &&
+          Array.isArray(trendResult.weighted_scores)
+        ) {
           setWeeklyData({
-            dates: trendRes.result.dates || ["D-6", "D-5", "D-4", "D-3", "D-2", "D-1", "오늘"],
-            scores: trendRes.result.weighted_scores || [],
+            dates: trendResult.dates,
+            scores: trendResult.weighted_scores,
           });
         }
       } catch (e) {
@@ -54,7 +71,6 @@ export const StatsScreen: React.FC = () => {
     const chartWidth = width - paddingLeft - paddingRight;
     const chartHeight = height - paddingTop - paddingBottom;
 
-    // Y축: -10 ~ +10 -> SVG Y 좌표 수식 변환
     const getEvY = (val: number) => {
       const clamped = Math.max(-10, Math.min(10, val));
       return paddingTop + chartHeight - ((clamped + 10) / 20) * chartHeight;
@@ -65,7 +81,6 @@ export const StatsScreen: React.FC = () => {
       return paddingLeft + index * step;
     };
 
-    // 꺾은선 경로(Path) 포인트 생성 (null 값 제외)
     const points = weeklyData.scores
       .map((score, idx) => (score !== null ? `${getEvX(idx)},${getEvY(score)}` : null))
       .filter((p) => p !== null)
@@ -75,7 +90,6 @@ export const StatsScreen: React.FC = () => {
 
     return (
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
-        {/* 가로 점선 가이드라인 & Y축 라벨 */}
         {yGridValues.map((val) => {
           const y = getEvY(val);
           return (
@@ -101,10 +115,9 @@ export const StatsScreen: React.FC = () => {
           );
         })}
 
-        {/* X축 날짜 라벨 */}
         {weeklyData.dates.map((date, idx) => {
           const x = getEvX(idx);
-          const label = date.length > 5 ? date.slice(-5) : date; // 예: "07-20" 또는 "D-6"
+          const label = date.length > 5 ? date.slice(-5) : date;
           return (
             <text
               key={idx}
@@ -118,7 +131,6 @@ export const StatsScreen: React.FC = () => {
           );
         })}
 
-        {/* 꺾은선 그래프 */}
         {points && (
           <polyline
             fill="none"
@@ -130,7 +142,6 @@ export const StatsScreen: React.FC = () => {
           />
         )}
 
-        {/* 각 좌표 데이터 포인트 (점) */}
         {weeklyData.scores.map((score, idx) => {
           if (score === null) return null;
           const cx = getEvX(idx);
@@ -151,12 +162,10 @@ export const StatsScreen: React.FC = () => {
 
   return (
     <div className="flex flex-col flex-1 bg-[#f8fafc] p-4 font-sans">
-      {/* 타이틀 */}
       <h1 className="text-[20px] font-extrabold text-slate-800 mb-4 tracking-tight">
         내 감정 통계
       </h1>
 
-      {/* 1. 최근 1주일 누적 점수 평균 카드 */}
       <div className="bg-indigo-600 rounded-[28px] p-6 text-white shadow-md mb-5 flex justify-between items-center relative overflow-hidden">
         <div>
           <p className="text-xs font-medium text-indigo-100 mb-1">
@@ -177,7 +186,6 @@ export const StatsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. 일주일 감정 점수 변화 (꺾은선 그래프 카드) */}
       <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm space-y-4">
         <div>
           <h2 className="text-base font-bold text-slate-800">
@@ -188,7 +196,6 @@ export const StatsScreen: React.FC = () => {
           </p>
         </div>
 
-        {/* Chart Render */}
         <div className="pt-2 pb-1">
           {isLoading ? (
             <div className="h-44 flex items-center justify-center text-xs text-slate-400">

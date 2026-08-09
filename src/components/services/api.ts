@@ -11,7 +11,7 @@ export interface CategoryDomain {
 
 export interface CreateDiaryPayload {
   diary_date: string;
-  keword_id: number;
+  domain_id: number; // 👈 keword_id -> domain_id 수정
   weight_id: number;
   score1: number;
   score2: number;
@@ -39,7 +39,7 @@ export interface AiAnalyzePayload {
   memo: string;
 }
 
-// 1. 최신 도메인/가중치 설정 조회 (GET /api/domain/latest)
+// 1. 최신 도메인/가중치 설정 조회
 export const fetchLatestDomain = async () => {
   if (!USE_MOCK) {
     try {
@@ -67,7 +67,7 @@ export const fetchLatestDomain = async () => {
   };
 };
 
-// 2. 도메인 및 가중치 저장 (POST /api/domain)
+// 2. 도메인 및 가중치 저장 (설정 상태 항상 저장)
 export const saveDomainSettings = async (categories: CategoryDomain[]) => {
   const payload = {
     domain1_name: categories[0]?.name || "",
@@ -82,6 +82,9 @@ export const saveDomainSettings = async (categories: CategoryDomain[]) => {
     weight5_value: categories[4]?.weight || 1,
   };
 
+  // 👈 항상 로컬스토리지 플래그 기입
+  localStorage.setItem("haru_line_settings", JSON.stringify({ categories }));
+
   if (!USE_MOCK) {
     try {
       const res = await fetch(`${BASE_URL}/domain`, {
@@ -91,15 +94,14 @@ export const saveDomainSettings = async (categories: CategoryDomain[]) => {
       });
       if (res.ok) return await res.json();
     } catch (e) {
-      console.warn("백엔드 저장 실패, 로컬스토리지로 폴백합니다.", e);
+      console.warn("백엔드 저장 실패, 로컬스토리지로 지속합니다.", e);
     }
   }
 
-  localStorage.setItem("haru_line_settings", JSON.stringify({ categories }));
-  return { success: true };
+  return { status: 201, code: "DOMAIN_CREATE_SUCCESS", result: { domain_id: Date.now(), weight_id: Date.now() } };
 };
 
-// 3. 일기 작성 (POST /api/diaries)
+// 3. 일기 작성
 export const saveDiaryRecord = async (payload: CreateDiaryPayload) => {
   if (!USE_MOCK) {
     try {
@@ -117,7 +119,7 @@ export const saveDiaryRecord = async (payload: CreateDiaryPayload) => {
 
       if (res.ok) return data;
     } catch (e: any) {
-      console.warn("백엔드 일기 저장 실패/오류, 로컬스토리지로 폴백합니다.", e);
+      console.warn("백엔드 일기 저장 오류, 로컬스토리지로 폴백합니다.", e);
       if (e.message?.includes("이미 일기가 존재")) throw e;
     }
   }
@@ -126,7 +128,7 @@ export const saveDiaryRecord = async (payload: CreateDiaryPayload) => {
   const newRecord = {
     diary_id: Date.now(),
     ...payload,
-    ai_reply: "일기 저장이 완료되었습니다! 오늘 하루도 고생 많으셨습니다. 👏",
+    ai_reply: "일기 저장이 완료되었습니다!",
   };
 
   const existing = localStorage.getItem("haru_line_logs");
@@ -136,7 +138,7 @@ export const saveDiaryRecord = async (payload: CreateDiaryPayload) => {
   return { status: 201, result: { diary_id: newRecord.diary_id } };
 };
 
-// 4. 월별 일기장 요약 목록 조회 (GET /api/diaries?year={year}&month={month})
+// 4. 월별 일기장 요약 목록 조회
 export const fetchMonthlyDiaries = async (year: number, month: number): Promise<MonthlyDiarySummary[]> => {
   if (!USE_MOCK) {
     try {
@@ -144,12 +146,9 @@ export const fetchMonthlyDiaries = async (year: number, month: number): Promise<
       const data = await res.json();
 
       if (res.status === 404) return [];
-
-      if (res.ok && Array.isArray(data.result)) {
-        return data.result;
-      }
+      if (res.ok && Array.isArray(data.result)) return data.result;
     } catch (e) {
-      console.warn("백엔드 월별 조회 실패, 로컬 데이터로 폴백합니다.", e);
+      console.warn("백엔드 월별 조회 실패", e);
     }
   }
 
@@ -162,22 +161,17 @@ export const fetchMonthlyDiaries = async (year: number, month: number): Promise<
   }));
 };
 
-// 5. 일기 상세 조회 (GET /api/diaries/{diary_id})
+// 5. 일기 상세 조회
 export const fetchDiaryDetail = async (diaryId: number | string) => {
   if (!USE_MOCK) {
     try {
       const res = await fetch(`${BASE_URL}/diaries/${diaryId}`);
       const data = await res.json();
 
-      if (res.status === 404) {
-        throw new Error("해당 일기를 찾을 수 없습니다.");
-      }
-
-      if (res.ok && data.result) {
-        return data.result;
-      }
+      if (res.status === 404) throw new Error("해당 일기를 찾을 수 없습니다.");
+      if (res.ok && data.result) return data.result;
     } catch (e: any) {
-      console.warn("백엔드 상세조회 실패, 로컬스토리지로 폴백합니다.", e);
+      console.warn("백엔드 상세조회 실패", e);
       if (e.message?.includes("찾을 수 없습니다")) throw e;
     }
   }
@@ -198,7 +192,7 @@ export const fetchDiaryDetail = async (diaryId: number | string) => {
   };
 };
 
-// 6. 일기 검색 (GET /api/diaries/search?startDate=&endDate=&keyword=)
+// 6. 일기 검색
 export const searchDiaries = async (params: {
   startDate?: string;
   endDate?: string;
@@ -214,11 +208,9 @@ export const searchDiaries = async (params: {
       const res = await fetch(`${BASE_URL}/diaries/search?${query.toString()}`);
       const data = await res.json();
 
-      if (res.ok && Array.isArray(data.result)) {
-        return data.result;
-      }
+      if (res.ok && Array.isArray(data.result)) return data.result;
     } catch (e) {
-      console.warn("백엔드 일기 검색 실패, 로컬 데이터로 폴백합니다.", e);
+      console.warn("백엔드 일기 검색 실패", e);
     }
   }
 
@@ -240,14 +232,14 @@ export const searchDiaries = async (params: {
     }));
 };
 
-// 7. 주간 평균 감정 점수 조회 (GET /api/statistics/average)
+// 7. 주간 평균 감정 점수 조회
 export const fetchWeeklyAverage = async () => {
   if (!USE_MOCK) {
     try {
       const res = await fetch(`${BASE_URL}/statistics/average`);
       if (res.ok) return await res.json();
     } catch (e) {
-      console.warn("백엔드 주간 평균 조회 실패, 로컬 데이터로 폴백합니다.", e);
+      console.warn("백엔드 주간 평균 조회 실패", e);
     }
   }
 
@@ -255,20 +247,18 @@ export const fetchWeeklyAverage = async () => {
     status: 200,
     code: "STAT_AVG_SUCCESS",
     message: "주간 평균 점수 조회 성공",
-    result: {
-      total_weighted_average: 4.25,
-    },
+    result: { total_weighted_average: 4.25 },
   };
 };
 
-// 8. 주간 감정 점수 추세 조회 (GET /api/statistics/weekly)
+// 8. 주간 감정 점수 추세 조회
 export const fetchWeeklyTrend = async () => {
   if (!USE_MOCK) {
     try {
       const res = await fetch(`${BASE_URL}/statistics/weekly`);
       if (res.ok) return await res.json();
     } catch (e) {
-      console.warn("백엔드 주간 추세 조회 실패, 로컬 데이터로 폴백합니다.", e);
+      console.warn("백엔드 주간 추세 조회 실패", e);
     }
   }
 
@@ -283,7 +273,7 @@ export const fetchWeeklyTrend = async () => {
   };
 };
 
-// 9. AI 피드백 생성 (POST /api/ai/analyze)
+// 9. AI 피드백 생성
 export const analyzeAiFeedback = async (payload: AiAnalyzePayload) => {
   if (!USE_MOCK) {
     try {
@@ -294,20 +284,13 @@ export const analyzeAiFeedback = async (payload: AiAnalyzePayload) => {
       });
 
       const data = await res.json();
-
-      if (res.status === 500) {
-        throw new Error(data.message || "AI API 연동에 실패하였습니다.");
-      }
-
-      if (res.ok && data.result) {
-        return data.result.ai_reply;
-      }
+      if (res.status === 500) throw new Error(data.message || "AI API 연동 실패");
+      if (res.ok && data.result) return data.result.ai_reply;
     } catch (e: any) {
-      console.warn("백엔드 AI 분석 실패, 기본 텍스트로 폴백합니다.", e);
+      console.warn("백엔드 AI 분석 실패", e);
     }
   }
 
-  // MOCK / Fallback 처리
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  return "오늘 선택하신 영역의 점수와 작성해주신 메모를 바탕으로 분석을 마쳤어요! 열심히 살아낸 오늘 하루, 정말 고생 많으셨습니다. 👏";
+  return "오늘 선택하신 영역 점수와 작성해주신 메모를 바탕으로 분석을 마쳤어요! 수고하셨습니다. 👏";
 };

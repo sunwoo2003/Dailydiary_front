@@ -8,16 +8,15 @@ import { FreeMemoStep } from "./components/record/FreeMemoStep";
 import { AiFeedbackStep } from "./components/record/AiFeedbackStep";
 import { DiaryScreen } from "./components/DiaryScreen";
 import { StatsScreen } from "./components/StatsScreen";
-import { saveDiaryRecord, analyzeAiFeedback } from "./components/services/api";
+import { saveDiaryRecord, analyzeAiFeedback, CategoryDomain } from "./components/services/api";
 
-export interface DailyRecord {
-  id: string;
-  date: string;
-  scores: Record<number, number>;
-  memo: string;
-  aiFeedback?: string;
-  createdAt: string;
-}
+const DEFAULT_CATEGORIES: CategoryDomain[] = [
+  { id: 1, name: "수면", weight: 1 },
+  { id: 2, name: "식사", weight: 1 },
+  { id: 3, name: "정서 안정", weight: 1 },
+  { id: 4, name: "성취/몰입", weight: 1 },
+  { id: 5, name: "대인 관계", weight: 1 },
+];
 
 function App() {
   const [isConfigured, setIsConfigured] = useState<boolean>(() => {
@@ -27,11 +26,12 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabType>("record");
   const [recordStep, setRecordStep] = useState<1 | 2 | 3>(1);
 
-  const [categories, setCategories] = useState<SettingData["categories"]>([]);
+  const [categories, setCategories] = useState<CategoryDomain[]>([]);
   const [scores, setScores] = useState<Record<number, number>>({});
   const [memo, setMemo] = useState<string>("");
   const [aiFeedback, setAiFeedback] = useState<string>("");
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
+  const [statsKey, setStatsKey] = useState<number>(0); // 👈 통계 리프레시용 key
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().split("T")[0];
@@ -39,20 +39,26 @@ function App() {
 
   const loadSettingsAndInitScores = () => {
     const saved = localStorage.getItem("haru_line_settings");
+    let categoryList = DEFAULT_CATEGORIES;
+
     if (saved) {
       try {
         const parsed: SettingData = JSON.parse(saved);
-        setCategories(parsed.categories);
-
-        const initialScores: Record<number, number> = {};
-        parsed.categories.forEach((c) => {
-          initialScores[c.id] = 0;
-        });
-        setScores(initialScores);
+        if (parsed.categories && parsed.categories.length > 0) {
+          categoryList = parsed.categories;
+        }
       } catch (e) {
         console.error("설정 불러오기 실패", e);
       }
     }
+
+    setCategories(categoryList);
+
+    const initialScores: Record<number, number> = {};
+    categoryList.forEach((c) => {
+      initialScores[c.id] = 0;
+    });
+    setScores(initialScores);
   };
 
   useEffect(() => {
@@ -61,11 +67,26 @@ function App() {
     }
   }, [isConfigured]);
 
-  const handleSettingComplete = () => {
+  const handleSettingComplete = (updatedCategories?: CategoryDomain[]) => {
     setIsConfigured(true);
     setActiveTab("record");
     setRecordStep(1);
     setSelectedDate(new Date().toISOString().split("T")[0]);
+
+    const targetCategories = (updatedCategories && updatedCategories.length > 0) 
+      ? updatedCategories 
+      : DEFAULT_CATEGORIES;
+
+    setCategories(targetCategories);
+    const initialScores: Record<number, number> = {};
+    targetCategories.forEach((c) => {
+      initialScores[c.id] = 0;
+    });
+    setScores(initialScores);
+  };
+
+  const handleOpenSetting = () => {
+    setIsConfigured(false);
   };
 
   const handleScoreChange = (id: number, val: string) => {
@@ -94,7 +115,7 @@ function App() {
 
       const diaryPayload = {
         diary_date: selectedDate,
-        keword_id: 1,
+        domain_id: 1, // 👈 keword_id 오타 수정
         weight_id: 1,
         score1: scores[1] ?? 0,
         score2: scores[2] ?? 0,
@@ -106,6 +127,9 @@ function App() {
       };
 
       await saveDiaryRecord(diaryPayload);
+
+      // 👈 통계 화면 리프레시 키 변경
+      setStatsKey((prev) => prev + 1);
     } catch (error: any) {
       alert(error.message || "처리 중 오류가 발생했습니다.");
     } finally {
@@ -132,7 +156,7 @@ function App() {
     <div className="min-h-screen bg-[#d2d6dc] flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-[580px] bg-[#1e2229] p-[16px] rounded-[48px] shadow-2xl">
         <div className="w-full bg-[#f8fafc] rounded-[36px] overflow-hidden flex flex-col min-h-[720px] max-h-[85vh]">
-          <Header />
+          <Header onOpenSetting={handleOpenSetting} />
 
           <div className="flex-1 overflow-y-auto flex flex-col">
             {!isConfigured ? (
@@ -177,7 +201,7 @@ function App() {
                     }}
                   />
                 )}
-                {activeTab === "stats" && <StatsScreen />}
+                {activeTab === "stats" && <StatsScreen key={statsKey} />}
               </div>
             )}
           </div>
