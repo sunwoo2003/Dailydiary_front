@@ -1,6 +1,14 @@
 // src/components/DiaryScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
+  ResponsiveContainer,
+  RadarChart as RechartsRadar,
+  PolarGrid,
+  PolarAngleAxis,
+  Radar,
+  PolarRadiusAxis,
+} from "recharts";
+import {
   fetchMonthlyDiaries,
   fetchDiaryDetail,
   searchDiaries,
@@ -17,7 +25,6 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
   const [diaries, setDiaries] = useState<MonthlyDiarySummary[]>([]);
   const [selectedDiary, setSelectedDiary] = useState<any | null>(null);
 
-  // 검색 상태
   const [searchKeyword, setSearchKeyword] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -103,6 +110,20 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
     }
   };
 
+  // 📊 Recharts용 데이터 포맷팅 함수 (-10~10점 범위를 Recharts 객체 배열로 변환)
+  const getChartData = () => {
+    if (!selectedDiary) return [];
+    const names = selectedDiary.keyword_names || ["수면", "식사", "정서", "몰입", "관계"];
+    const scores = selectedDiary.weighted_scores || [0, 0, 0, 0, 0];
+
+    return names.map((name: string, idx: number) => ({
+      subject: name,
+      score: scores[idx] ?? 0,
+      // Recharts 레이더 표시용 정규화 값 (-10~10점을 0~20으로 매핑)
+      displayValue: (scores[idx] ?? 0) + 10,
+    }));
+  };
+
   return (
     <div className="flex flex-col flex-1 bg-[#f8fafc] p-4 font-sans relative">
       {/* 1. 상단 다중 조건 검색 영역 */}
@@ -141,7 +162,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       </div>
 
-      {/* 2. 기본 달력 영역 (배경) */}
+      {/* 2. 기본 달력 영역 */}
       <div className="flex-1 flex flex-col">
         <div className="flex justify-between items-center px-4 py-2 mb-2">
           <button
@@ -232,7 +253,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       </div>
 
-      {/* 3. 검색 결과 팝업 오버레이 (달력 위에 마운트) */}
+      {/* 3. 검색 결과 팝업 오버레이 */}
       {searchResults !== null && (
         <div className="absolute inset-x-4 top-[170px] bottom-4 bg-white/95 backdrop-blur-md p-5 rounded-[32px] border border-slate-100 shadow-2xl flex flex-col z-20 animate-in fade-in duration-200">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
@@ -251,7 +272,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
           <div className="flex-1 overflow-y-auto">
             {searchResults.length === 0 ? (
               <div className="h-full min-h-[160px] flex items-center justify-center text-rose-500 font-extrabold text-sm tracking-wide">
-                검색 실패
+                검색 결과가 없습니다.
               </div>
             ) : (
               <div className="space-y-2">
@@ -265,12 +286,9 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
                       <span className="text-[11px] font-bold text-indigo-600 block mb-0.5">
                         📅 {item.diary_date}
                       </span>
-                      <p
-                        className="text-xs text-slate-700 line-clamp-1 font-medium [&_strong]:text-indigo-600 [&_strong]:font-extrabold [&_strong]:bg-indigo-50 [&_strong]:px-1 [&_strong]:rounded"
-                        dangerouslySetInnerHTML={{
-                          __html: item.memo_preview || "메모 없음",
-                        }}
-                      />
+                      <p className="text-xs text-slate-700 line-clamp-1 font-medium">
+                        {item.memo_preview || "메모 없음"}
+                      </p>
                     </div>
                     <span className="text-slate-300 text-xs shrink-0">›</span>
                   </div>
@@ -281,7 +299,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       )}
 
-      {/* 4. 일기 상세 모달 */}
+      {/* 4. 🎯 Recharts 오각형 차트 모달 */}
       {selectedDiary && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-sm rounded-[32px] p-6 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
@@ -302,20 +320,27 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
               </button>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-              <p className="text-xs font-bold text-slate-500 mb-2">영역별 감정 점수</p>
-              <div className="grid grid-cols-5 gap-1 text-[10px] font-bold text-indigo-600 bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
-                {(selectedDiary.keyword_names || ["수면", "식사", "정서", "몰입", "관계"]).map(
-                  (name: string, idx: number) => {
-                    const score = selectedDiary.weighted_scores?.[idx] ?? 0;
-                    return (
-                      <div key={idx} className="flex flex-col items-center">
-                        <span className="text-slate-400 text-[9px] mb-0.5">{name}</span>
-                        <span>{score >= 0 ? `+${score}` : score}</span>
-                      </div>
-                    );
-                  }
-                )}
+            {/* 📊 Recharts 오각형 차트 영역 */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center">
+              <p className="text-xs font-bold text-slate-500 mb-2">영역별 감정 차트</p>
+              <div className="w-full h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsRadar data={getChartData()}>
+                    <PolarGrid stroke="#e2e8f0" />
+                    <PolarAngleAxis
+                      dataKey="subject"
+                      tick={{ fill: "#475569", fontSize: 11, fontWeight: "bold" }}
+                    />
+                    <PolarRadiusAxis domain={[0, 20]} axisLine={false} tick={false} />
+                    <Radar
+                      name="감정 점수"
+                      dataKey="displayValue"
+                      stroke="#6366f1"
+                      fill="#6366f1"
+                      fillOpacity={0.4}
+                    />
+                  </RechartsRadar>
+                </ResponsiveContainer>
               </div>
             </div>
 
