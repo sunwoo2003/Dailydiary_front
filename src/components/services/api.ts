@@ -11,14 +11,14 @@ export interface CategoryDomain {
 
 export interface CreateDiaryPayload {
   diary_date: string;
-  domain_id: number | string; // 명세서 표기(String/Number) 대응
+  domain_id: number | string; 
   weight_id: number;
   score1: number;
   score2: number;
   score3: number;
   score4: number;
   score5: number;
-  memo: string; // 👈 weather 필드 제거
+  memo: string; 
 }
 export interface MonthlyDiarySummary {
   diary_id: number;
@@ -109,7 +109,6 @@ export const saveDomainSettings = async (categories: CategoryDomain[]) => {
   return { status: 201, code: "DOMAIN_CREATE_SUCCESS", result: { domain_id: Date.now(), weight_id: Date.now() } };
 };
 
-// 3. 일기 작성
 export const saveDiaryRecord = async (payload: CreateDiaryPayload) => {
   if (!USE_MOCK) {
     try {
@@ -121,29 +120,36 @@ export const saveDiaryRecord = async (payload: CreateDiaryPayload) => {
 
       const data = await res.json();
 
-      if (res.status === 409) {
-        throw new Error(data.message || "해당 날짜에 이미 일기가 존재합니다.");
+      // 백엔드 응답의 status가 200/201이 아닌 경우 (400, 409, 500 등)
+      if (!res.ok || data.status >= 400) {
+        throw new Error(data.message || "일기 저장 중 오류가 발생했습니다.");
       }
 
-      if (res.ok) return data;
+      // 성공 시 { status: 201, code: "DIARY_CREATE_SUCCESS", message: "...", result: { diary_id: 1 } } 반환
+      return data;
     } catch (e: any) {
-      console.warn("백엔드 일기 저장 오류, 로컬스토리지로 폴백합니다.", e);
-      if (e.message?.includes("이미 일기가 존재")) throw e;
+      console.error("일기 저장 통신 오류:", e);
+      throw e;
     }
   }
 
+  // USE_MOCK = true 시 동작
   await new Promise((resolve) => setTimeout(resolve, 800));
   const newRecord = {
     diary_id: Date.now(),
     ...payload,
-    ai_reply: "일기 저장이 완료되었습니다!",
   };
 
   const existing = localStorage.getItem("haru_line_logs");
   const logs = existing ? JSON.parse(existing) : [];
   localStorage.setItem("haru_line_logs", JSON.stringify([newRecord, ...logs]));
 
-  return { status: 201, result: { diary_id: newRecord.diary_id } };
+  return {
+    status: 201,
+    code: "DIARY_CREATE_SUCCESS",
+    message: "일기가 저장되었습니다.",
+    result: { diary_id: newRecord.diary_id },
+  };
 };
 
 // 4. 월별 일기장 요약 목록 조회
@@ -310,22 +316,27 @@ export const deleteDiaryRecord = async (diaryId: number | string) => {
 };
 
 // 11. 현 위치 날씨 조회 (GET /api/weather?nx={nx}&ny={ny})
-// src/services/api.ts
 export const fetchCurrentWeather = async (
   nx: number = 58,
   ny: number = 127
 ): Promise<string> => {
   if (!USE_MOCK) {
     try {
-      // GET http://localhost:8080/api/weather?nx=58&ny=127 호출
       const res = await fetch(`${BASE_URL}/weather?nx=${nx}&ny=${ny}`);
-      const data: WeatherResponse = await res.json();
+      
+      // 💡 백엔드에서 500, 404, 502 등의 에러 응답이 와도 에러를 던지지 않고 '맑음' 반환
+      if (!res.ok) {
+        console.warn(`날씨 API 응답 이상 (${res.status}), 기본값('맑음')으로 처리합니다.`);
+        return "맑음";
+      }
 
-      if (res.ok && data.result?.weather) {
+      const data: WeatherResponse = await res.json();
+      if (data.result?.weather) {
         return data.result.weather;
       }
     } catch (e) {
-      console.warn("날씨 API 연동 실패, 기본값('맑음')으로 폴백합니다.", e);
+      // 💡 네트워크 에러나 서버 다운 시에도 에러를 던지지 않고 '맑음' 반환
+      console.warn("날씨 API 호출 실패, 기본값('맑음')으로 처리합니다.", e);
     }
   }
 

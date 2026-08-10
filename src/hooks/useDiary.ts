@@ -116,31 +116,21 @@ export function useDiary(isConfigured: boolean) {
     setScores((prev) => ({ ...prev, [id]: parseInt(val, 10) }));
   };
 
-  // 🎯 별도 AI 피드백 API 호출 없이 일기 저장 1회로 AI 메시지 수신
   const handleSaveDiary = async (memoToSave: string) => {
     setRecordStep(3);
     setIsLoadingAi(true);
 
+    // 1. 날씨 조회 (실패해도 절대 흐름을 막지 않음)
+    let weatherResult = "맑음";
     try {
-      // 1. 날씨 1회 조회 (완료 화면 표시용)
-      let weatherResult = "맑음";
-      try {
-        if ("geolocation" in navigator) {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
-          });
-          const nx = Math.floor(position.coords.latitude);
-          const ny = Math.floor(position.coords.longitude);
-          weatherResult = await fetchCurrentWeather(nx, ny);
-        } else {
-          weatherResult = await fetchCurrentWeather();
-        }
-      } catch (e) {
-        weatherResult = await fetchCurrentWeather();
-      }
-      setCurrentWeather(weatherResult);
+      weatherResult = await fetchCurrentWeather(58, 127);
+    } catch (e) {
+      weatherResult = "맑음";
+    }
+    setCurrentWeather(weatherResult);
 
-      // 2. 백엔드 전달 Payload
+    // 2. 일기 저장 실행
+    try {
       const diaryPayload: CreateDiaryPayload = {
         diary_date: selectedDate,
         domain_id: 1,
@@ -150,25 +140,16 @@ export function useDiary(isConfigured: boolean) {
         score3: scores[3] ?? 0,
         score4: scores[4] ?? 0,
         score5: scores[5] ?? 0,
-        weather: weatherResult,
         memo: memoToSave,
       };
 
-      // 3. 일기 저장 호출 (백엔드가 일기 저장 + AI 피드백 생성 후 한 번에 응답)
-      const res = await saveDiaryRecord(diaryPayload);
+      await saveDiaryRecord(diaryPayload);
 
-      // 4. 응답값 내 ai_reply (또는 ai_message) 적용
-      const aiReply =
-        res?.result?.ai_reply ||
-        res?.result?.ai_message ||
-        res?.ai_reply ||
-        res?.ai_message ||
-        "오늘 하루도 수고 많으셨어요! 👏";
-
-      setAiFeedback(aiReply);
+      setAiFeedback("오늘 하루도 정말 수고 많으셨어요! 일기가 성공적으로 저장되었습니다. 👏");
       setStatsKey((prev) => prev + 1);
     } catch (error: any) {
       alert(error.message || "처리 중 오류가 발생했습니다.");
+      setRecordStep(2); // 일기 저장 '자체'가 실패했을 때만 돌아감
     } finally {
       setIsLoadingAi(false);
     }
