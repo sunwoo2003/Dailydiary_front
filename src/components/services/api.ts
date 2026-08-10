@@ -281,27 +281,6 @@ export const fetchWeeklyTrend = async () => {
   };
 };
 
-// 9. AI 피드백 생성
-export const analyzeAiFeedback = async (payload: AiAnalyzePayload) => {
-  if (!USE_MOCK) {
-    try {
-      const res = await fetch(`${BASE_URL}/ai/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.status === 500) throw new Error(data.message || "AI API 연동 실패");
-      if (res.ok && data.result) return data.result.ai_reply;
-    } catch (e: any) {
-      console.warn("백엔드 AI 분석 실패", e);
-    }
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return "오늘 선택하신 영역 점수와 작성해주신 메모를 바탕으로 분석을 마쳤어요! 수고하셨습니다. 👏";
-};
 
 // 10. 일기 삭제 (DELETE /api/diaries/{diary_id})
 export const deleteDiaryRecord = async (diaryId: number | string) => {
@@ -331,18 +310,15 @@ export const deleteDiaryRecord = async (diaryId: number | string) => {
 };
 
 // 11. 현 위치 날씨 조회 (GET /api/weather?nx={nx}&ny={ny})
+// src/services/api.ts
 export const fetchCurrentWeather = async (
-  nx?: number,
-  ny?: number
+  nx: number = 58,
+  ny: number = 127
 ): Promise<string> => {
   if (!USE_MOCK) {
     try {
-      const query = new URLSearchParams();
-      if (nx !== undefined) query.append("nx", String(nx));
-      if (ny !== undefined) query.append("ny", String(ny));
-
-      const queryString = query.toString() ? `?${query.toString()}` : "";
-      const res = await fetch(`${BASE_URL}/weather${queryString}`);
+      // GET http://localhost:8080/api/weather?nx=58&ny=127 호출
+      const res = await fetch(`${BASE_URL}/weather?nx=${nx}&ny=${ny}`);
       const data: WeatherResponse = await res.json();
 
       if (res.ok && data.result?.weather) {
@@ -353,6 +329,5 @@ export const fetchCurrentWeather = async (
     }
   }
 
-  // MOCK 및 네트워크 에러/실패 시 디폴트 반환값
   return "맑음";
 };

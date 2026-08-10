@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import {
   saveDiaryRecord,
-  analyzeAiFeedback,
   fetchMonthlyDiaries,
   deleteDiaryRecord,
   fetchCurrentWeather,
@@ -27,9 +26,7 @@ export function useDiary(isConfigured: boolean) {
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
   const [statsKey, setStatsKey] = useState<number>(0);
 
-  // 저장 완료 화면 배너 표시용 날씨
   const [currentWeather, setCurrentWeather] = useState<string>("맑음");
-
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [todayDiaryId, setTodayDiaryId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -119,7 +116,7 @@ export function useDiary(isConfigured: boolean) {
     setScores((prev) => ({ ...prev, [id]: parseInt(val, 10) }));
   };
 
-  // 🌤️ 일기 저장 시점에만 날씨 1회 조회 후 백엔드 저장
+  // 🎯 별도 AI 피드백 API 호출 없이 일기 저장 1회로 AI 메시지 수신
   const handleSaveDiary = async (memoToSave: string) => {
     setRecordStep(3);
     setIsLoadingAi(true);
@@ -143,22 +140,7 @@ export function useDiary(isConfigured: boolean) {
       }
       setCurrentWeather(weatherResult);
 
-      // 2. AI 분석 진행
-      const weightedScores = [
-        scores[1] ?? 0,
-        scores[2] ?? 0,
-        scores[3] ?? 0,
-        scores[4] ?? 0,
-        scores[5] ?? 0,
-      ];
-
-      const generatedAiReply = await analyzeAiFeedback({
-        weighted_scores: weightedScores,
-        memo: memoToSave,
-      });
-      setAiFeedback(generatedAiReply);
-
-      // 3. 백엔드 전송 (명세서 규격에 맞게 weather 필드 제거)
+      // 2. 백엔드 전달 Payload
       const diaryPayload: CreateDiaryPayload = {
         diary_date: selectedDate,
         domain_id: 1,
@@ -168,10 +150,22 @@ export function useDiary(isConfigured: boolean) {
         score3: scores[3] ?? 0,
         score4: scores[4] ?? 0,
         score5: scores[5] ?? 0,
+        weather: weatherResult,
         memo: memoToSave,
       };
 
-      await saveDiaryRecord(diaryPayload);
+      // 3. 일기 저장 호출 (백엔드가 일기 저장 + AI 피드백 생성 후 한 번에 응답)
+      const res = await saveDiaryRecord(diaryPayload);
+
+      // 4. 응답값 내 ai_reply (또는 ai_message) 적용
+      const aiReply =
+        res?.result?.ai_reply ||
+        res?.result?.ai_message ||
+        res?.ai_reply ||
+        res?.ai_message ||
+        "오늘 하루도 수고 많으셨어요! 👏";
+
+      setAiFeedback(aiReply);
       setStatsKey((prev) => prev + 1);
     } catch (error: any) {
       alert(error.message || "처리 중 오류가 발생했습니다.");
