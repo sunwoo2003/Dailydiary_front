@@ -1,10 +1,10 @@
-// src/hooks/useDiary.ts
 import { useState, useEffect } from "react";
 import {
   saveDiaryRecord,
   fetchMonthlyDiaries,
   deleteDiaryRecord,
   fetchCurrentWeather,
+  requestAiFeedback,
   CategoryDomain,
   CreateDiaryPayload,
 } from "../components/services/api";
@@ -29,9 +29,16 @@ export function useDiary(isConfigured: boolean) {
   const [currentWeather, setCurrentWeather] = useState<string>("맑음");
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [todayDiaryId, setTodayDiaryId] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0];
-  });
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+
+  // Step 1: 최초 진입 시 날씨 미리 받기
+  useEffect(() => {
+    const loadInitialWeather = async () => {
+      const weather = await fetchCurrentWeather();
+      setCurrentWeather(weather);
+    };
+    loadInitialWeather();
+  }, []);
 
   const loadSettingsAndInitScores = () => {
     const saved = localStorage.getItem("haru_line_settings");
@@ -116,21 +123,13 @@ export function useDiary(isConfigured: boolean) {
     setScores((prev) => ({ ...prev, [id]: parseInt(val, 10) }));
   };
 
+  // Step 2~4: 일기 저장 -> diary_id 획득 -> AI 분석 API 분리 실행
   const handleSaveDiary = async (memoToSave: string) => {
     setRecordStep(3);
     setIsLoadingAi(true);
 
-    // 1. 날씨 조회 (실패해도 절대 흐름을 막지 않음)
-    let weatherResult = "맑음";
     try {
-      weatherResult = await fetchCurrentWeather(58, 127);
-    } catch (e) {
-      weatherResult = "맑음";
-    }
-    setCurrentWeather(weatherResult);
-
-    // 2. 일기 저장 실행
-    try {
+      // Step 2: 일기 저장
       const diaryPayload: CreateDiaryPayload = {
         diary_date: selectedDate,
         domain_id: 1,
@@ -141,15 +140,24 @@ export function useDiary(isConfigured: boolean) {
         score4: scores[4] ?? 0,
         score5: scores[5] ?? 0,
         memo: memoToSave,
+        weather: currentWeather,
       };
 
-      await saveDiaryRecord(diaryPayload);
+      const res = await saveDiaryRecord(diaryPayload);
+      const diaryId = res?.result?.diary_id || res?.diary_id;
 
-      setAiFeedback("오늘 하루도 정말 수고 많으셨어요! 일기가 성공적으로 저장되었습니다. 👏");
+      // Step 3 & 4: AI 분석 API 호출
+      if (diaryId) {
+        const reply = await requestAiFeedback(diaryId);
+        setAiFeedback(reply);
+      } else {
+        setAiFeedback("오늘 하루도 수고 많으셨습니다!");
+      }
+
       setStatsKey((prev) => prev + 1);
     } catch (error: any) {
-      alert(error.message || "처리 중 오류가 발생했습니다.");
-      setRecordStep(2); // 일기 저장 '자체'가 실패했을 때만 돌아감
+      alert(error.message || "일기 저장 중 오류가 발생했습니다.");
+      setRecordStep(2);
     } finally {
       setIsLoadingAi(false);
     }

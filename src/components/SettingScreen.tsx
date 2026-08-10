@@ -1,10 +1,5 @@
-// src/components/SettingScreen.tsx
 import React, { useState, useEffect } from "react";
 import { saveDomainSettings, CategoryDomain, fetchLatestDomain } from "./services/api";
-
-export interface SettingData {
-  categories: CategoryDomain[];
-}
 
 interface SettingScreenProps {
   onSaveComplete: (categories: CategoryDomain[]) => void;
@@ -20,33 +15,11 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 저장된 최신 키워드 및 가중치 동기화
   useEffect(() => {
     const loadSavedSettings = async () => {
       try {
-        // 1. 먼저 로컬스토리지에 저장된 설정이 있다면 우선 적용 (가장 즉각적)
-        const savedLocal = localStorage.getItem("haru_line_settings");
-        if (savedLocal) {
-          const parsed = JSON.parse(savedLocal);
-          if (parsed.categories && parsed.categories.length === 5) {
-            setCategories(parsed.categories);
-            return;
-          }
-        }
-
-        // 2. 로컬스토리지에 없거나 백엔드 최신 데이터를 조회할 경우
-        const res = await fetchLatestDomain();
-        const data = res?.result || res;
-
-        if (data && data.domain1_name) {
-          setCategories([
-            { id: 1, name: data.domain1_name, weight: Number(data.weight1_value || 1) },
-            { id: 2, name: data.domain2_name, weight: Number(data.weight2_value || 1) },
-            { id: 3, name: data.domain3_name, weight: Number(data.weight3_value || 1) },
-            { id: 4, name: data.domain4_name, weight: Number(data.weight4_value || 1) },
-            { id: 5, name: data.domain5_name, weight: Number(data.weight5_value || 1) },
-          ]);
-        }
+        const latestCategories = await fetchLatestDomain();
+        setCategories(latestCategories);
       } catch (e) {
         console.error("기존 설정 불러오기 실패:", e);
       }
@@ -55,15 +28,11 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
   }, []);
 
   const handleNameChange = (id: number, name: string) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, name } : c))
-    );
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
   };
 
   const handleWeightChange = (id: number, weight: number) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, weight } : c))
-    );
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, weight } : c)));
   };
 
   const handleSave = async () => {
@@ -111,12 +80,8 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
 
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <span className="text-[12px] font-medium text-slate-400">
-                  가중치 배율 (1~10)
-                </span>
-                <span className="text-[13px] font-bold text-indigo-600">
-                  x{cat.weight} 배
-                </span>
+                <span className="text-[12px] font-medium text-slate-400">가중치 배율 (1~10)</span>
+                <span className="text-[13px] font-bold text-indigo-600">x{cat.weight} 배</span>
               </div>
 
               <input
