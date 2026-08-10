@@ -11,17 +11,15 @@ export interface CategoryDomain {
 
 export interface CreateDiaryPayload {
   diary_date: string;
-  domain_id: number; // 👈 keword_id -> domain_id 수정
+  domain_id: number | string; // 명세서 표기(String/Number) 대응
   weight_id: number;
   score1: number;
   score2: number;
   score3: number;
   score4: number;
   score5: number;
-  weather: string;
-  memo: string;
+  memo: string; // 👈 weather 필드 제거
 }
-
 export interface MonthlyDiarySummary {
   diary_id: number;
   diary_date: string;
@@ -37,6 +35,16 @@ export interface SearchDiaryResult {
 export interface AiAnalyzePayload {
   weighted_scores: number[];
   memo: string;
+}
+
+export interface WeatherResponse {
+  status: number;
+  code: string;
+  message: string;
+  result?: {
+    weather: string;
+    temperature?: string;
+  };
 }
 
 // 1. 최신 도메인/가중치 설정 조회
@@ -82,7 +90,7 @@ export const saveDomainSettings = async (categories: CategoryDomain[]) => {
     weight5_value: categories[4]?.weight || 1,
   };
 
-  // 👈 항상 로컬스토리지 플래그 기입
+
   localStorage.setItem("haru_line_settings", JSON.stringify({ categories }));
 
   if (!USE_MOCK) {
@@ -320,4 +328,31 @@ export const deleteDiaryRecord = async (diaryId: number | string) => {
   }
 
   return { status: 200, code: "DIARY_DELETE_SUCCESS", message: "일기가 삭제되었습니다." };
+};
+
+// 11. 현 위치 날씨 조회 (GET /api/weather?nx={nx}&ny={ny})
+export const fetchCurrentWeather = async (
+  nx?: number,
+  ny?: number
+): Promise<string> => {
+  if (!USE_MOCK) {
+    try {
+      const query = new URLSearchParams();
+      if (nx !== undefined) query.append("nx", String(nx));
+      if (ny !== undefined) query.append("ny", String(ny));
+
+      const queryString = query.toString() ? `?${query.toString()}` : "";
+      const res = await fetch(`${BASE_URL}/weather${queryString}`);
+      const data: WeatherResponse = await res.json();
+
+      if (res.ok && data.result?.weather) {
+        return data.result.weather;
+      }
+    } catch (e) {
+      console.warn("날씨 API 연동 실패, 기본값('맑음')으로 폴백합니다.", e);
+    }
+  }
+
+  // MOCK 및 네트워크 에러/실패 시 디폴트 반환값
+  return "맑음";
 };

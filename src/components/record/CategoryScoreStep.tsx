@@ -1,22 +1,13 @@
 // src/components/record/CategoryScoreStep.tsx
 import React from "react";
-import { CategoryDomain } from "../services/api";
 
 interface CategoryScoreStepProps {
-  selectedDate?: string; // 👈 추가
-  categories: CategoryDomain[];
+  selectedDate: string;
+  categories: Array<{ id: number; name: string }>;
   scores: Record<number, number>;
   onScoreChange: (id: number, val: string) => void;
   onNext: () => void;
 }
-
-const CATEGORY_ICONS: Record<number, string> = {
-  1: "⭐",
-  2: "🔥",
-  3: "💖",
-  4: "⚡",
-  5: "🍃",
-};
 
 export const CategoryScoreStep: React.FC<CategoryScoreStepProps> = ({
   selectedDate,
@@ -25,48 +16,36 @@ export const CategoryScoreStep: React.FC<CategoryScoreStepProps> = ({
   onScoreChange,
   onNext,
 }) => {
-  // 💡 날짜에 맞는 타이틀 반환 로직
-  const getTitleText = () => {
-    if (!selectedDate) return "오늘 하루, 어땠나요?";
+  const todayStr = new Date().toISOString().split("T")[0];
+  const isToday = selectedDate === todayStr;
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (selectedDate === todayStr) {
+  const getHeaderTitle = () => {
+    if (isToday) {
       return "오늘 하루, 어땠나요?";
     }
-
-    // YYYY-MM-DD -> M월 D일
-    const [_, m, d] = selectedDate.split("-");
-    return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일, 어땠나요?`;
+    const [, month, day] = selectedDate.split("-");
+    return `${parseInt(month, 10)}월 ${parseInt(day, 10)}일, 어땠나요?`;
   };
 
   return (
-    <div>
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-[24px] font-extrabold text-slate-800 tracking-tight mb-1">
-            {getTitleText()} {/* 👈 dynamic 멘트 로딩 */}
-          </h1>
-          <p className="text-xs text-slate-400 font-medium">
-            슬라이더를 움직여 -10 ~ 10점 사이로 평가해주세요.
-          </p>
-        </div>
-        <div className="bg-white border border-slate-100 rounded-2xl px-3 py-2 flex items-center gap-1.5 shadow-sm text-xs font-semibold text-slate-600">
-          <span>☁️</span>
-          <span>흐림</span>
-        </div>
+    <div className="flex flex-col flex-1 bg-[#f8fafc] p-4 font-sans">
+      <div className="mb-6 px-1">
+        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-1">
+          {getHeaderTitle()}
+        </h1>
+        <p className="text-xs text-slate-400 font-medium">
+          슬라이더를 움직여 -10 ~ 10점 사이로 평가해주세요.
+        </p>
       </div>
 
-      <div className="space-y-4 mb-8">
+      <div className="space-y-4 flex-1 overflow-y-auto mb-6 pr-1">
         {categories.map((cat) => (
           <div
             key={cat.id}
             className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm"
           >
             <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{CATEGORY_ICONS[cat.id] || "📌"}</span>
-                <h3 className="font-bold text-slate-800 text-base">{cat.name}</h3>
-              </div>
+              <h3 className="font-bold text-slate-800 text-base">{cat.name}</h3>
               <span className="text-sm font-extrabold text-indigo-600">
                 {scores[cat.id] ?? 0}점
               </span>
@@ -79,7 +58,7 @@ export const CategoryScoreStep: React.FC<CategoryScoreStepProps> = ({
               step="1"
               value={scores[cat.id] ?? 0}
               onChange={(e) => onScoreChange(cat.id, e.target.value)}
-              className="w-full h-[6px] bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mb-2"
+              className="w-full h-[6px] bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600 mb-2"
             />
 
             <div className="flex justify-between text-[11px] font-medium text-slate-400">
@@ -93,9 +72,9 @@ export const CategoryScoreStep: React.FC<CategoryScoreStepProps> = ({
 
       <button
         onClick={onNext}
-        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors shadow-lg shadow-indigo-100 cursor-pointer"
+        className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl shadow-md transition-all cursor-pointer"
       >
-        다음 단계로
+        다음 단계 (메모 작성)
       </button>
     </div>
   );

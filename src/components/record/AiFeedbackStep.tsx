@@ -3,6 +3,7 @@ import React from "react";
 
 interface AiFeedbackStepProps {
   memo: string;
+  weather?: string; // 👈 weather prop 추가
   aiFeedback: string;
   isLoadingAi: boolean;
   onGoToDiary: () => void;
@@ -10,23 +11,23 @@ interface AiFeedbackStepProps {
 
 export const AiFeedbackStep: React.FC<AiFeedbackStepProps> = ({
   memo,
+  weather = "맑음",
   aiFeedback,
   isLoadingAi,
   onGoToDiary,
 }) => {
   return (
     <div className="space-y-6">
-      {/* 저장 완료 배너 */}
       <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-emerald-800 text-sm">
           <span>🎉</span> 오늘의 일기가 저장되었습니다!
         </div>
+        {/* 🌤️ 저장 시점의 동적 날씨 표시 */}
         <span className="text-xs text-emerald-600 font-semibold bg-white px-2.5 py-1 rounded-xl shadow-xs">
-          ☁️ 흐림
+          🌤️ {weather}
         </span>
       </div>
 
-      {/* 내 메모 말풍선 */}
       {memo && (
         <div className="flex justify-end">
           <div className="bg-indigo-600 text-white text-sm font-medium px-5 py-3 rounded-3xl rounded-tr-none max-w-[80%] shadow-sm">
@@ -35,7 +36,6 @@ export const AiFeedbackStep: React.FC<AiFeedbackStepProps> = ({
         </div>
       )}
 
-      {/* AI 피드백 말풍선 */}
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-2xl bg-indigo-100 flex items-center justify-center text-lg shrink-0">
           🤖
@@ -56,7 +56,6 @@ export const AiFeedbackStep: React.FC<AiFeedbackStepProps> = ({
         </div>
       </div>
 
-      {/* 내 일기장 보러가기 버튼 */}
       <div className="pt-6 text-center">
         <button
           onClick={onGoToDiary}

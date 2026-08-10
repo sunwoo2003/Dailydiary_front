@@ -1,56 +1,10 @@
 // src/components/StatsScreen.tsx
-import React, { useEffect, useState } from "react";
-import { fetchWeeklyAverage, fetchWeeklyTrend } from "./services/api";
+import React from "react";
+import { useStats } from "../hooks/useStats";
 
 export const StatsScreen: React.FC = () => {
-  const [weeklyAverage, setWeeklyAverage] = useState<number | null>(null);
-  const [weeklyData, setWeeklyData] = useState<{
-    dates: string[];
-    scores: (number | null)[];
-  }>({
-    dates: ["D-6", "D-5", "D-4", "D-3", "D-2", "D-1", "오늘"],
-    scores: [null, null, null, null, null, null, null],
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const { weeklyAverage, weeklyData, isLoading } = useStats();
 
-  useEffect(() => {
-    const loadStats = async () => {
-      setIsLoading(true);
-      try {
-        const [avgRes, trendRes] = await Promise.all([
-          fetchWeeklyAverage(),
-          fetchWeeklyTrend(),
-        ]);
-
-        // 1. 주간 평균 점수
-        const avgValue =
-          avgRes?.result?.total_weighted_average ??
-          avgRes?.total_weighted_average ??
-          null;
-
-        if (avgValue !== null) {
-          setWeeklyAverage(avgValue);
-        }
-
-        // 2. 주간 추세 데이터
-        const trend = trendRes?.result || trendRes;
-        if (trend?.dates && trend?.weighted_scores) {
-          setWeeklyData({
-            dates: trend.dates,
-            scores: trend.weighted_scores,
-          });
-        }
-      } catch (e) {
-        console.error("통계 데이터 로딩 에러:", e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadStats();
-  }, []);
-
-  // SVG 꺾은선 그래프 좌표 계산
   const renderLineChart = () => {
     const width = 280;
     const height = 180;
@@ -79,7 +33,6 @@ export const StatsScreen: React.FC = () => {
 
     return (
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
-        {/* 가로 가이드 라인 및 Y축 라벨 */}
         {[10, 5, 0, -5, -10].map((val) => {
           const y = getEvY(val);
           return (
@@ -105,7 +58,6 @@ export const StatsScreen: React.FC = () => {
           );
         })}
 
-        {/* X축 날짜 라벨 */}
         {weeklyData.dates.map((date, idx) => (
           <text
             key={idx}
@@ -118,7 +70,6 @@ export const StatsScreen: React.FC = () => {
           </text>
         ))}
 
-        {/* 꺾은선 */}
         {points && (
           <polyline
             fill="none"
@@ -130,7 +81,6 @@ export const StatsScreen: React.FC = () => {
           />
         )}
 
-        {/* 좌표 포인트 (점) */}
         {weeklyData.scores.map((score, idx) => {
           if (score === null) return null;
           return (
