@@ -316,9 +316,11 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
                 <h3 className="text-base font-extrabold text-slate-800">
                   {selectedDiary.diary_date}
                 </h3>
-                <span className="text-xs px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full font-bold flex items-center gap-1">
-                  ☀️ {selectedDiary.weather || "맑음"}
-                </span>
+                {selectedDiary.weather && (
+                  <span className="text-xs px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full font-bold flex items-center gap-1">
+                    ☀️ {selectedDiary.weather}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setSelectedDiary(null)}

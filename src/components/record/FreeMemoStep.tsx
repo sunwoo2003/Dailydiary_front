@@ -12,12 +12,6 @@ export const FreeMemoStep: React.FC<FreeMemoStepProps> = ({
   onMemoChange,
   onSave,
 }) => {
-  const tagChips = ["#프로젝트_완료", "#칭찬받음", "#퇴근후_운동"];
-
-  const handleChipClick = (tag: string) => {
-    onMemoChange(memo ? `${memo} ${tag}` : tag);
-  };
-
   return (
     <div>
       <div className="mb-6">
@@ -30,23 +24,6 @@ export const FreeMemoStep: React.FC<FreeMemoStepProps> = ({
       </div>
 
       <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm space-y-4 mb-8">
-        <div className="text-xs text-slate-400 font-medium flex items-center gap-1">
-          <span>💡</span> 아래 칩을 누르거나 직접 적어보세요
-        </div>
-
-        {/* 태그 칩 */}
-        <div className="flex flex-wrap gap-2">
-          {tagChips.map((chip) => (
-            <button
-              key={chip}
-              onClick={() => handleChipClick(chip)}
-              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-
         {/* 자유 입력창 */}
         <textarea
           value={memo}

@@ -46,13 +46,13 @@ export function useDiary(isConfigured: boolean) {
     loadInitialWeather();
   }, []);
 
-  // 백엔드 DB에서 최신 도메인/가중치 로드
+  // 백엔드 DB에서 최신 도메인/가중치 로드 및 점수 초기화
   const loadSettingsAndInitScores = async () => {
     let categoryList = DEFAULT_CATEGORIES;
 
     try {
       const latestDomains = await fetchLatestDomain();
-      if (latestDomains && latestDomains.length === 5) {
+      if (Array.isArray(latestDomains) && latestDomains.length === 5) {
         categoryList = latestDomains;
       }
     } catch (e) {
@@ -133,10 +133,11 @@ export function useDiary(isConfigured: boolean) {
     setIsLoadingAi(true);
 
     try {
-      // 💡 최신 domain_id / weight_id 정보를 백엔드에서 확인
-      const latestDomainInfo = await fetchLatestDomain();
-      const domainId = (latestDomainInfo as any)?.domain_id || categories[0]?.id || 1;
-      const weightId = (latestDomainInfo as any)?.weight_id || 1;
+      // 💡 최신 domain_id / weight_id 가져오기
+      const latestData = await fetchLatestDomain();
+      
+      const domainId = (latestData as any)?.domain_id ?? 1;
+      const weightId = (latestData as any)?.weight_id ?? 1;
 
       const diaryPayload: CreateDiaryPayload = {
         diary_date: selectedDate,
