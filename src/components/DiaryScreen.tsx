@@ -34,14 +34,21 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
+  // 1. 월별 일기 목록 조회
   useEffect(() => {
     const loadDiaries = async () => {
-      const data = await fetchMonthlyDiaries(year, month);
-      setDiaries(data || []);
+      try {
+        const data = await fetchMonthlyDiaries(year, month);
+        setDiaries(data || []);
+      } catch (e) {
+        console.error("월별 일기 조회 에러:", e);
+        setDiaries([]);
+      }
     };
     loadDiaries();
   }, [year, month]);
 
+  // 2. 일기 검색
   const handleSearch = async () => {
     if (!startDate && !endDate && !searchKeyword.trim()) {
       setSearchResults(null);
@@ -56,8 +63,8 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         keyword: searchKeyword.trim() || undefined,
       });
       setSearchResults(results);
-    } catch (e) {
-      console.error("일기 검색 에러:", e);
+    } catch (e: any) {
+      alert(e.message || "일기 검색 중 오류가 발생했습니다.");
     } finally {
       setIsSearching(false);
     }
@@ -73,10 +80,12 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
   const firstDay = new Date(year, month - 1, 1).getDay();
   const lastDate = new Date(year, month, 0).getDate();
 
+  // 가장 행복한 날 (가중 평균 최대치)
   const highestScoreDiary = diaries.reduce((max, item) => {
     return item.weighted_avg > (max?.weighted_avg ?? -999) ? item : max;
   }, null as MonthlyDiarySummary | null);
 
+  // 3. 일기 상세 조회
   const openDiaryDetail = async (diaryId: number) => {
     try {
       const detail = await fetchDiaryDetail(diaryId);
@@ -110,17 +119,16 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
     }
   };
 
-  // 📊 Recharts용 데이터 포맷팅 함수 (-10~10점 범위를 Recharts 객체 배열로 변환)
+  // 📊 백엔드 명세서 데이터 매핑 (domain_names & domain_scores 사용)
   const getChartData = () => {
     if (!selectedDiary) return [];
-    const names = selectedDiary.keyword_names || ["수면", "식사", "정서", "몰입", "관계"];
-    const scores = selectedDiary.weighted_scores || [0, 0, 0, 0, 0];
 
-    return names.map((name: string, idx: number) => ({
+    const domainNames = selectedDiary.domain_names || ["수면", "식사", "정서", "몰입", "관계"];
+    const domainScores = selectedDiary.domain_scores || [0, 0, 0, 0, 0];
+
+    return domainNames.map((name: string, idx: number) => ({
       subject: name,
-      score: scores[idx] ?? 0,
-      // Recharts 레이더 표시용 정규화 값 (-10~10점을 0~20으로 매핑)
-      displayValue: (scores[idx] ?? 0) + 10,
+      score: domainScores[idx] ?? 0,
     }));
   };
 
@@ -213,8 +221,8 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
               let bgStyle = "text-slate-600 hover:bg-slate-50";
               if (diary) {
                 const avg = diary.weighted_avg;
-                if (avg > 15) bgStyle = "bg-indigo-100 text-indigo-700 font-bold";
-                else if (avg < -15) bgStyle = "bg-amber-100 text-amber-700 font-bold";
+                if (avg > 3) bgStyle = "bg-indigo-100 text-indigo-700 font-bold";
+                else if (avg < -3) bgStyle = "bg-amber-100 text-amber-700 font-bold";
                 else bgStyle = "bg-slate-100 text-slate-700 font-bold";
               }
 
@@ -299,7 +307,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       )}
 
-      {/* 4. 🎯 Recharts 오각형 차트 모달 */}
+      {/* 4. -10 ~ 10점 범위 적용 오각형 차트 모달 */}
       {selectedDiary && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-sm rounded-[32px] p-6 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
@@ -320,9 +328,8 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
               </button>
             </div>
 
-            {/* 📊 Recharts 오각형 차트 영역 */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center">
-              <p className="text-xs font-bold text-slate-500 mb-2">영역별 감정 차트</p>
+              <p className="text-xs font-bold text-slate-500 mb-2">영역별 평가 점수 (-10 ~ 10)</p>
               <div className="w-full h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsRadar data={getChartData()}>
@@ -331,10 +338,10 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
                       dataKey="subject"
                       tick={{ fill: "#475569", fontSize: 11, fontWeight: "bold" }}
                     />
-                    <PolarRadiusAxis domain={[0, 20]} axisLine={false} tick={false} />
+                    <PolarRadiusAxis domain={[-10, 10]} axisLine={false} tick={false} />
                     <Radar
-                      name="감정 점수"
-                      dataKey="displayValue"
+                      name="평가 점수"
+                      dataKey="score"
                       stroke="#6366f1"
                       fill="#6366f1"
                       fillOpacity={0.4}

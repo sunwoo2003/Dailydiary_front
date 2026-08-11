@@ -1,5 +1,4 @@
-// src/App.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Header } from "./components/layout/Header";
 import { BottomNavigation, TabType } from "./components/layout/BottomNavigation";
 import SettingScreen from "./components/SettingScreen";
@@ -8,16 +7,34 @@ import { FreeMemoStep } from "./components/record/FreeMemoStep";
 import { AiFeedbackStep } from "./components/record/AiFeedbackStep";
 import { DiaryScreen } from "./components/DiaryScreen";
 import { StatsScreen } from "./components/StatsScreen";
-import { CategoryDomain } from "./components/services/api";
+import { CategoryDomain, fetchLatestDomain } from "./components/services/api";
 import { useDiary } from "./hooks/useDiary";
 
 function App() {
-  const [isConfigured, setIsConfigured] = useState<boolean>(() => {
-    return !!localStorage.getItem("haru_line_settings");
-  });
-
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("diary");
-  const diary = useDiary(isConfigured);
+
+  const diary = useDiary(Boolean(isConfigured));
+
+  useEffect(() => {
+    const checkBackendDomainStatus = async () => {
+      try {
+        const latestDomains = await fetchLatestDomain();
+
+        // 백엔드 DB에 정상적인 도메인 5개가 설정되어 있는지 확인
+        if (latestDomains && latestDomains.length === 5) {
+          setIsConfigured(true);
+        } else {
+          setIsConfigured(false);
+        }
+      } catch (error) {
+        // DB 미설정 상태이거나 에러 시 설정 화면으로 이동
+        setIsConfigured(false);
+      }
+    };
+
+    checkBackendDomainStatus();
+  }, []);
 
   const handleTabChange = async (tab: TabType) => {
     if (tab === "record") {
@@ -51,9 +68,16 @@ function App() {
           <Header onOpenSetting={() => setIsConfigured(false)} />
 
           <div className="flex-1 overflow-y-auto flex flex-col">
-            {!isConfigured ? (
+            {/* 1. 검증 진행 중일 때는 중앙 로딩 표시 */}
+            {isConfigured === null ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-xs font-bold text-slate-400 animate-pulse">설정 확인 중...</p>
+              </div>
+            ) : !isConfigured ? (
+              /* 2. DB 미설정 시: 설정 화면 */
               <SettingScreen onSaveComplete={handleSettingComplete} />
             ) : (
+              /* 3. DB 설정 완료 시: 일기장 메인 */
               <div className="p-8 flex-1">
                 {activeTab === "record" && (
                   <>

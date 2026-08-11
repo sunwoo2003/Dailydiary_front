@@ -1,3 +1,4 @@
+// src/hooks/useDiary.ts
 import { useState, useEffect } from "react";
 import {
   saveDiaryRecord,
@@ -5,6 +6,7 @@ import {
   deleteDiaryRecord,
   fetchCurrentWeather,
   requestAiFeedback,
+  fetchLatestDomain,
   CategoryDomain,
   CreateDiaryPayload,
 } from "../components/services/api";
@@ -31,28 +33,30 @@ export function useDiary(isConfigured: boolean) {
   const [todayDiaryId, setTodayDiaryId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
 
-  // Step 1: 최초 진입 시 날씨 미리 받기
+  // Step 1: 최초 진입 시 날씨 가져오기
   useEffect(() => {
     const loadInitialWeather = async () => {
-      const weather = await fetchCurrentWeather();
-      setCurrentWeather(weather);
+      try {
+        const weather = await fetchCurrentWeather();
+        setCurrentWeather(weather);
+      } catch (e) {
+        console.error("날씨 불러오기 실패:", e);
+      }
     };
     loadInitialWeather();
   }, []);
 
-  const loadSettingsAndInitScores = () => {
-    const saved = localStorage.getItem("haru_line_settings");
+  // 백엔드 DB에서 최신 도메인/가중치 로드
+  const loadSettingsAndInitScores = async () => {
     let categoryList = DEFAULT_CATEGORIES;
 
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.categories && parsed.categories.length > 0) {
-          categoryList = parsed.categories;
-        }
-      } catch (e) {
-        console.error("설정 불러오기 실패", e);
+    try {
+      const latestDomains = await fetchLatestDomain();
+      if (latestDomains && latestDomains.length === 5) {
+        categoryList = latestDomains;
       }
+    } catch (e) {
+      console.error("백엔드 도메인 설정 불러오기 실패:", e);
     }
 
     setCategories(categoryList);
@@ -90,7 +94,7 @@ export function useDiary(isConfigured: boolean) {
         return false;
       }
     } catch (e) {
-      console.error("오늘 일기 체크 실패", e);
+      console.error("오늘 일기 중복 체크 실패:", e);
     }
 
     setSelectedDate(todayStr);
@@ -104,7 +108,7 @@ export function useDiary(isConfigured: boolean) {
       try {
         await deleteDiaryRecord(todayDiaryId);
       } catch (e) {
-        console.error("기존 일기 삭제 실패", e);
+        console.error("기존 일기 삭제 실패:", e);
       }
     }
 
@@ -123,17 +127,21 @@ export function useDiary(isConfigured: boolean) {
     setScores((prev) => ({ ...prev, [id]: parseInt(val, 10) }));
   };
 
-  // Step 2~4: 일기 저장 -> diary_id 획득 -> AI 분석 API 분리 실행
+  // Step 2~4: 일기 저장 -> diary_id 획득 -> AI 분석 API 호출
   const handleSaveDiary = async (memoToSave: string) => {
     setRecordStep(3);
     setIsLoadingAi(true);
 
     try {
-      // Step 2: 일기 저장
+      // 💡 최신 domain_id / weight_id 정보를 백엔드에서 확인
+      const latestDomainInfo = await fetchLatestDomain();
+      const domainId = (latestDomainInfo as any)?.domain_id || categories[0]?.id || 1;
+      const weightId = (latestDomainInfo as any)?.weight_id || 1;
+
       const diaryPayload: CreateDiaryPayload = {
         diary_date: selectedDate,
-        domain_id: 1,
-        weight_id: 1,
+        domain_id: domainId,
+        weight_id: weightId,
         score1: scores[1] ?? 0,
         score2: scores[2] ?? 0,
         score3: scores[3] ?? 0,
@@ -146,7 +154,6 @@ export function useDiary(isConfigured: boolean) {
       const res = await saveDiaryRecord(diaryPayload);
       const diaryId = res?.result?.diary_id || res?.diary_id;
 
-      // Step 3 & 4: AI 분석 API 호출
       if (diaryId) {
         const reply = await requestAiFeedback(diaryId);
         setAiFeedback(reply);

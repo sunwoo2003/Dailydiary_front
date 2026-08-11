@@ -19,7 +19,9 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
     const loadSavedSettings = async () => {
       try {
         const latestCategories = await fetchLatestDomain();
-        setCategories(latestCategories);
+        if (latestCategories && latestCategories.length === 5) {
+          setCategories(latestCategories);
+        }
       } catch (e) {
         console.error("기존 설정 불러오기 실패:", e);
       }
@@ -36,13 +38,25 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
   };
 
   const handleSave = async () => {
+    const hasEmptyName = categories.some((cat) => !cat.name.trim());
+    if (hasEmptyName) {
+      alert("모든 영역의 이름을 입력해 주세요.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // 1. 백엔드 DB에 새 도메인/가중치 버전 저장
       await saveDomainSettings(categories);
-      onSaveComplete(categories);
-    } catch (error) {
+      
+      // 2. 저장 후 최신 도메인 정보 다시 조회
+      const latest = await fetchLatestDomain();
+      
+      // 3. 부모 컴포넌트(App)로 최신 설정 전달
+      onSaveComplete(latest || categories);
+    } catch (error: any) {
       console.error("설정 저장 에러:", error);
-      alert("설정 저장 중 오류가 발생했습니다.");
+      alert(error.message || "설정 저장 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
