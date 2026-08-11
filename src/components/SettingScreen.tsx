@@ -18,9 +18,10 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
   useEffect(() => {
     const loadSavedSettings = async () => {
       try {
-        const latestCategories = await fetchLatestDomain();
-        if (latestCategories && latestCategories.length === 5) {
-          setCategories(latestCategories);
+        const latestData = await fetchLatestDomain();
+        // 🟢 수정: latestData.categories 확인 후 세팅
+        if (latestData && latestData.categories && latestData.categories.length === 5) {
+          setCategories(latestData.categories);
         }
       } catch (e) {
         console.error("기존 설정 불러오기 실패:", e);
@@ -50,10 +51,10 @@ export const SettingScreen: React.FC<SettingScreenProps> = ({ onSaveComplete }) 
       await saveDomainSettings(categories);
       
       // 2. 저장 후 최신 도메인 정보 다시 조회
-      const latest = await fetchLatestDomain();
+      const latestData = await fetchLatestDomain();
       
-      // 3. 부모 컴포넌트(App)로 최신 설정 전달
-      onSaveComplete(latest || categories);
+      // 3. 부모 컴포넌트(App)로 최신 설정 배열 전달 (🟢 수정)
+      onSaveComplete(latestData?.categories || categories);
     } catch (error: any) {
       console.error("설정 저장 에러:", error);
       alert(error.message || "설정 저장 중 오류가 발생했습니다.");

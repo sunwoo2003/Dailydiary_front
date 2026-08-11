@@ -1,5 +1,6 @@
 // src/components/record/CategoryScoreStep.tsx
 import React from "react";
+import { getTodayKstDate } from "../../utils/date";
 
 interface CategoryScoreStepProps {
   selectedDate: string;
@@ -16,7 +17,7 @@ export const CategoryScoreStep: React.FC<CategoryScoreStepProps> = ({
   onScoreChange,
   onNext,
 }) => {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayKstDate();
   const isToday = selectedDate === todayStr;
 
   const getHeaderTitle = () => {

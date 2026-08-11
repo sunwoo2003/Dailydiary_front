@@ -8,6 +8,7 @@ import {
   Radar,
   PolarRadiusAxis,
 } from "recharts";
+import { getTodayKstDate } from "../utils/date";
 import {
   fetchMonthlyDiaries,
   fetchDiaryDetail,
@@ -100,7 +101,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
     const formattedDay = String(day).padStart(2, "0");
     const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getTodayKstDate();
     if (dateStr > todayStr) {
       alert("아직 오지 않은 날짜의 일기는 작성할 수 없습니다! ⏳");
       return;
@@ -119,7 +120,6 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
     }
   };
 
-  // 📊 백엔드 명세서 데이터 매핑 (domain_names & domain_scores 사용)
   const getChartData = () => {
     if (!selectedDiary) return [];
 
@@ -212,7 +212,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
               const formattedDay = String(day).padStart(2, "0");
               const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
 
-              const todayStr = new Date().toISOString().split("T")[0];
+              const todayStr = getTodayKstDate();
               const isFuture = dateStr > todayStr;
 
               const diary = diaries.find((d) => d.diary_date === dateStr);
@@ -307,7 +307,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       )}
 
-      {/* 4. -10 ~ 10점 범위 적용 오각형 차트 모달 */}
+      {/* 4. 차트 모달 */}
       {selectedDiary && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-sm rounded-[32px] p-6 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">

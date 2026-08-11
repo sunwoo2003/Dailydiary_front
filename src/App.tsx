@@ -19,10 +19,10 @@ function App() {
   useEffect(() => {
     const checkBackendDomainStatus = async () => {
       try {
-        const latestDomains = await fetchLatestDomain();
+        const latestData = await fetchLatestDomain();
 
-        // 백엔드 DB에 정상적인 도메인 5개가 설정되어 있는지 확인
-        if (latestDomains && latestDomains.length === 5) {
+        // 🟢 백엔드 DB에 정상적인 도메인 5개가 설정되어 있는지 확인 (latestData.categories 사용)
+        if (latestData && latestData.categories && latestData.categories.length === 5) {
           setIsConfigured(true);
         } else {
           setIsConfigured(false);
@@ -48,7 +48,6 @@ function App() {
     setIsConfigured(true);
     setActiveTab("diary");
     diary.setRecordStep(1);
-    diary.setSelectedDate(new Date().toISOString().split("T")[0]);
 
     if (updatedCategories && updatedCategories.length > 0) {
       diary.setCategories(updatedCategories);
@@ -58,7 +57,6 @@ function App() {
   const handleGoToDiary = () => {
     setActiveTab("diary");
     diary.resetRecordForm();
-    diary.setSelectedDate(new Date().toISOString().split("T")[0]);
   };
 
   return (
@@ -118,7 +116,7 @@ function App() {
                     }}
                   />
                 )}
-                {activeTab === "stats" && <StatsScreen key={diary.statsKey} />}
+                {activeTab === "stats" && <StatsScreen />}
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 // src/hooks/useDiary.ts
 import { useState, useEffect } from "react";
+import { getTodayKstDate } from "../utils/date";
 import {
   saveDiaryRecord,
   fetchMonthlyDiaries,
@@ -31,7 +32,7 @@ export function useDiary(isConfigured: boolean) {
   const [currentWeather, setCurrentWeather] = useState<string>("맑음");
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [todayDiaryId, setTodayDiaryId] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayKstDate);
 
   // Step 1: 최초 진입 시 날씨 가져오기
   useEffect(() => {
@@ -51,9 +52,10 @@ export function useDiary(isConfigured: boolean) {
     let categoryList = DEFAULT_CATEGORIES;
 
     try {
-      const latestDomains = await fetchLatestDomain();
-      if (Array.isArray(latestDomains) && latestDomains.length === 5) {
-        categoryList = latestDomains;
+      const latestData = await fetchLatestDomain();
+      // 🟢 수정: latestData.categories 참조
+      if (latestData && latestData.categories.length === 5) {
+        categoryList = latestData.categories;
       }
     } catch (e) {
       console.error("백엔드 도메인 설정 불러오기 실패:", e);
@@ -81,7 +83,7 @@ export function useDiary(isConfigured: boolean) {
   };
 
   const checkTodayDiaryBeforeRecord = async () => {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getTodayKstDate();
     const now = new Date();
 
     try {
@@ -112,7 +114,7 @@ export function useDiary(isConfigured: boolean) {
       }
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getTodayKstDate();
     setSelectedDate(todayStr);
     setTodayDiaryId(null);
     resetRecordForm();
@@ -133,11 +135,11 @@ export function useDiary(isConfigured: boolean) {
     setIsLoadingAi(true);
 
     try {
-      // 💡 최신 domain_id / weight_id 가져오기
+      // 🟢 수정: domain_id / weight_id를 올바르게 가져오기
       const latestData = await fetchLatestDomain();
       
-      const domainId = (latestData as any)?.domain_id ?? 1;
-      const weightId = (latestData as any)?.weight_id ?? 1;
+      const domainId = latestData?.domain_id ?? 1;
+      const weightId = latestData?.weight_id ?? 1;
 
       const diaryPayload: CreateDiaryPayload = {
         diary_date: selectedDate,

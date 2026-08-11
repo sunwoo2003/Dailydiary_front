@@ -1,9 +1,17 @@
+// src/components/services/api.ts
 const BASE_URL = "http://localhost:8080/api";
 
 export interface CategoryDomain {
   id: number;
   name: string;
   weight: number;
+}
+
+// 🟢 신규: 도메인/가중치 메타데이터 포함 인터페이스
+export interface LatestDomainResponse {
+  domain_id: number;
+  weight_id: number;
+  categories: CategoryDomain[];
 }
 
 export interface CreateDiaryPayload {
@@ -60,20 +68,24 @@ const handleResponse = async (res: Response) => {
   return data;
 };
 
-// 1. 최신 도메인/가중치 설정 조회
-export const fetchLatestDomain = async (): Promise<CategoryDomain[] | null> => {
+// 1. 최신 도메인/가중치 설정 조회 (🟢 수정: domain_id, weight_id 및 categories를 함께 반환)
+export const fetchLatestDomain = async (): Promise<LatestDomainResponse | null> => {
   const res = await fetch(`${BASE_URL}/domain/latest`);
   const data = await handleResponse(res);
   const domain = data.result;
 
   if (domain && domain.domain1_name) {
-    return [
-      { id: 1, name: domain.domain1_name, weight: Number(domain.weight1_value || 1) },
-      { id: 2, name: domain.domain2_name, weight: Number(domain.weight2_value || 1) },
-      { id: 3, name: domain.domain3_name, weight: Number(domain.weight3_value || 1) },
-      { id: 4, name: domain.domain4_name, weight: Number(domain.weight4_value || 1) },
-      { id: 5, name: domain.domain5_name, weight: Number(domain.weight5_value || 1) },
-    ];
+    return {
+      domain_id: Number(domain.domain_id || 1),
+      weight_id: Number(domain.weight_id || 1),
+      categories: [
+        { id: 1, name: domain.domain1_name, weight: Number(domain.weight1_value || 1) },
+        { id: 2, name: domain.domain2_name, weight: Number(domain.weight2_value || 1) },
+        { id: 3, name: domain.domain3_name, weight: Number(domain.weight3_value || 1) },
+        { id: 4, name: domain.domain4_name, weight: Number(domain.weight4_value || 1) },
+        { id: 5, name: domain.domain5_name, weight: Number(domain.weight5_value || 1) },
+      ],
+    };
   }
   return null;
 };
