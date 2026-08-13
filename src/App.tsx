@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useEffect } from "react";
 import { Header } from "./components/layout/Header";
 import { BottomNavigation, TabType } from "./components/layout/BottomNavigation";
@@ -20,15 +21,12 @@ function App() {
     const checkBackendDomainStatus = async () => {
       try {
         const latestData = await fetchLatestDomain();
-
-        // 🟢 백엔드 DB에 정상적인 도메인 5개가 설정되어 있는지 확인 (latestData.categories 사용)
         if (latestData && latestData.categories && latestData.categories.length === 5) {
           setIsConfigured(true);
         } else {
           setIsConfigured(false);
         }
       } catch (error) {
-        // DB 미설정 상태이거나 에러 시 설정 화면으로 이동
         setIsConfigured(false);
       }
     };
@@ -37,7 +35,7 @@ function App() {
   }, []);
 
   const handleTabChange = async (tab: TabType) => {
-    if (tab === "record") {
+    if (tab === "record" && !diary.editingDiaryId) {
       const canProceed = await diary.checkTodayDiaryBeforeRecord();
       if (!canProceed) return;
     }
@@ -59,6 +57,12 @@ function App() {
     diary.resetRecordForm();
   };
 
+  // Tab2 일기 상세 모달에서 '수정(✏️)' 눌렀을 때 호출
+  const handleEditFromDiaryScreen = async (diaryId: number) => {
+    await diary.startEditDiary(diaryId);
+    setActiveTab("record");
+  };
+
   return (
     <div className="min-h-screen bg-[#d2d6dc] flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-[580px] bg-[#1e2229] p-[16px] rounded-[48px] shadow-2xl">
@@ -66,16 +70,13 @@ function App() {
           <Header onOpenSetting={() => setIsConfigured(false)} />
 
           <div className="flex-1 overflow-y-auto flex flex-col">
-            {/* 1. 검증 진행 중일 때는 중앙 로딩 표시 */}
             {isConfigured === null ? (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-xs font-bold text-slate-400 animate-pulse">설정 확인 중...</p>
               </div>
             ) : !isConfigured ? (
-              /* 2. DB 미설정 시: 설정 화면 */
               <SettingScreen onSaveComplete={handleSettingComplete} />
             ) : (
-              /* 3. DB 설정 완료 시: 일기장 메인 */
               <div className="p-8 flex-1">
                 {activeTab === "record" && (
                   <>
@@ -91,6 +92,7 @@ function App() {
                     {diary.recordStep === 2 && (
                       <FreeMemoStep
                         memo={diary.memo}
+                        isEditing={Boolean(diary.editingDiaryId)}
                         onMemoChange={diary.setMemo}
                         onSave={diary.handleSaveDiary}
                       />
@@ -114,9 +116,10 @@ function App() {
                       setActiveTab("record");
                       diary.setRecordStep(1);
                     }}
+                    onEditDiary={handleEditFromDiaryScreen}
                   />
                 )}
-                {activeTab === "stats" && <StatsScreen />}
+                {activeTab === "stats" && <StatsScreen key={diary.statsKey} />}
               </div>
             )}
           </div>
@@ -136,8 +139,8 @@ function App() {
                     오늘 일기가 이미 작성되어 있습니다.
                   </h3>
                   <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                    일기를 다시 작성하시겠습니까? <br />
-                    (다시 작성하면 기존 일기 데이터는 삭제되고 새로 등록됩니다.)
+                    일기를 수정하시겠습니까? <br />
+                    (기존 내용을 바탕으로 덮어씁니다.)
                   </p>
                 </div>
                 <div className="flex gap-2.5 pt-1">

@@ -3,14 +3,17 @@ import { useState, useEffect } from "react";
 import { getTodayKstDate } from "../utils/date";
 import {
   saveDiaryRecord,
+  updateDiaryRecord,
   fetchMonthlyDiaries,
   deleteDiaryRecord,
-  fetchCurrentWeather,
   requestAiFeedback,
   fetchLatestDomain,
+  fetchDiaryDetail,
   CategoryDomain,
   CreateDiaryPayload,
+  UpdateDiaryPayload,
 } from "../components/services/api";
+import { useWeather } from "./useWeather";
 
 const DEFAULT_CATEGORIES: CategoryDomain[] = [
   { id: 1, name: "수면", weight: 1 },
@@ -29,32 +32,21 @@ export function useDiary(isConfigured: boolean) {
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
   const [statsKey, setStatsKey] = useState<number>(0);
 
-  const [currentWeather, setCurrentWeather] = useState<string>("맑음");
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [todayDiaryId, setTodayDiaryId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayKstDate);
 
-  // Step 1: 최초 진입 시 날씨 가져오기
-  useEffect(() => {
-    const loadInitialWeather = async () => {
-      try {
-        const weather = await fetchCurrentWeather();
-        setCurrentWeather(weather);
-      } catch (e) {
-        console.error("날씨 불러오기 실패:", e);
-      }
-    };
-    loadInitialWeather();
-  }, []);
+  // 수정 모드 관리 (null이면 신규 작성, number면 수정 모드)
+  const [editingDiaryId, setEditingDiaryId] = useState<number | null>(null);
 
-  // 백엔드 DB에서 최신 도메인/가중치 로드 및 점수 초기화
+  const currentWeather = useWeather();
+
   const loadSettingsAndInitScores = async () => {
     let categoryList = DEFAULT_CATEGORIES;
 
     try {
       const latestData = await fetchLatestDomain();
-      // 🟢 수정: latestData.categories 참조
-      if (latestData && latestData.categories.length === 5) {
+      if (latestData && latestData.categories?.length === 5) {
         categoryList = latestData.categories;
       }
     } catch (e) {
@@ -79,7 +71,38 @@ export function useDiary(isConfigured: boolean) {
     setRecordStep(1);
     setMemo("");
     setAiFeedback("");
+    setEditingDiaryId(null);
     loadSettingsAndInitScores();
+  };
+
+  // 기존 일기 상세 데이터를 기반으로 수정 폼 상태 채우기
+  const startEditDiary = async (diaryId: number) => {
+    try {
+      const detail = await fetchDiaryDetail(diaryId);
+      if (!detail) return;
+
+      setEditingDiaryId(diaryId);
+      setSelectedDate(detail.diary_date || getTodayKstDate());
+      setMemo(detail.memo || "");
+
+      const latestData = await fetchLatestDomain();
+      const currentCategories = latestData?.categories?.length === 5 ? latestData.categories : DEFAULT_CATEGORIES;
+      setCategories(currentCategories);
+
+      const loadedScores: Record<number, number> = {};
+      const catIds = currentCategories.map((c) => c.id);
+      
+      const domainScores = detail.domain_scores || [0, 0, 0, 0, 0];
+      catIds.forEach((id, idx) => {
+        loadedScores[id] = domainScores[idx] ?? 0;
+      });
+
+      setScores(loadedScores);
+      setRecordStep(1);
+    } catch (e) {
+      console.error("수정 데이터 로드 실패:", e);
+      alert("일기 데이터를 불러오는데 실패했습니다.");
+    }
   };
 
   const checkTodayDiaryBeforeRecord = async () => {
@@ -105,19 +128,13 @@ export function useDiary(isConfigured: boolean) {
     return true;
   };
 
+  // "네" 버튼 클릭 시 기존 ID를 가지고 수정 모드로 전환
   const handleConfirmOverwrite = async () => {
     if (todayDiaryId) {
-      try {
-        await deleteDiaryRecord(todayDiaryId);
-      } catch (e) {
-        console.error("기존 일기 삭제 실패:", e);
-      }
+      await startEditDiary(todayDiaryId);
+    } else {
+      resetRecordForm();
     }
-
-    const todayStr = getTodayKstDate();
-    setSelectedDate(todayStr);
-    setTodayDiaryId(null);
-    resetRecordForm();
     setShowOverwriteConfirm(false);
   };
 
@@ -126,39 +143,54 @@ export function useDiary(isConfigured: boolean) {
   };
 
   const handleScoreChange = (id: number, val: string) => {
-    setScores((prev) => ({ ...prev, [id]: parseInt(val, 10) }));
+    setScores((prev) => ({ ...prev, [id]: parseInt(val, 10) || 0 }));
   };
 
-  // Step 2~4: 일기 저장 -> diary_id 획득 -> AI 분석 API 호출
   const handleSaveDiary = async (memoToSave: string) => {
     setRecordStep(3);
     setIsLoadingAi(true);
 
     try {
-      // 🟢 수정: domain_id / weight_id를 올바르게 가져오기
-      const latestData = await fetchLatestDomain();
-      
-      const domainId = latestData?.domain_id ?? 1;
-      const weightId = latestData?.weight_id ?? 1;
+      const catIds = categories.map((c) => c.id);
+      let targetDiaryId: number | null = editingDiaryId;
 
-      const diaryPayload: CreateDiaryPayload = {
-        diary_date: selectedDate,
-        domain_id: domainId,
-        weight_id: weightId,
-        score1: scores[1] ?? 0,
-        score2: scores[2] ?? 0,
-        score3: scores[3] ?? 0,
-        score4: scores[4] ?? 0,
-        score5: scores[5] ?? 0,
-        memo: memoToSave,
-        weather: currentWeather,
-      };
+      if (editingDiaryId) {
+        // ✏️ 일기 수정 (PUT /api/diaries/{diary_id})
+        const updatePayload: UpdateDiaryPayload = {
+          score1: scores[catIds[0]] ?? 0,
+          score2: scores[catIds[1]] ?? 0,
+          score3: scores[catIds[2]] ?? 0,
+          score4: scores[catIds[3]] ?? 0,
+          score5: scores[catIds[4]] ?? 0,
+          memo: memoToSave,
+        };
+        await updateDiaryRecord(editingDiaryId, updatePayload);
+      } else {
+        // ➕ 신규 작성 (POST /api/diaries)
+        const latestData = await fetchLatestDomain();
+        const domainId = latestData?.domain_id ?? 1;
+        const weightId = latestData?.weight_id ?? 1;
 
-      const res = await saveDiaryRecord(diaryPayload);
-      const diaryId = res?.result?.diary_id || res?.diary_id;
+        const createPayload: CreateDiaryPayload = {
+          diary_date: selectedDate,
+          domain_id: domainId,
+          weight_id: weightId,
+          score1: scores[catIds[0]] ?? 0,
+          score2: scores[catIds[1]] ?? 0,
+          score3: scores[catIds[2]] ?? 0,
+          score4: scores[catIds[3]] ?? 0,
+          score5: scores[catIds[4]] ?? 0,
+          memo: memoToSave,
+          weather: currentWeather,
+        };
 
-      if (diaryId) {
-        const reply = await requestAiFeedback(diaryId);
+        const res = await saveDiaryRecord(createPayload);
+        targetDiaryId = res?.result?.diary_id || res?.diary_id;
+      }
+
+      // AI 피드백 재호출
+      if (targetDiaryId) {
+        const reply = await requestAiFeedback(targetDiaryId);
         setAiFeedback(reply);
       } else {
         setAiFeedback("오늘 하루도 수고 많으셨습니다!");
@@ -166,7 +198,7 @@ export function useDiary(isConfigured: boolean) {
 
       setStatsKey((prev) => prev + 1);
     } catch (error: any) {
-      alert(error.message || "일기 저장 중 오류가 발생했습니다.");
+      alert(error.message || "일기 저장/수정 중 오류가 발생했습니다.");
       setRecordStep(2);
     } finally {
       setIsLoadingAi(false);
@@ -189,6 +221,8 @@ export function useDiary(isConfigured: boolean) {
     setSelectedDate,
     currentWeather,
     showOverwriteConfirm,
+    editingDiaryId,
+    startEditDiary,
     checkTodayDiaryBeforeRecord,
     handleConfirmOverwrite,
     handleCancelOverwrite,

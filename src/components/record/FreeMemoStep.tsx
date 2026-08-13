@@ -3,18 +3,32 @@ import React from "react";
 
 interface FreeMemoStepProps {
   memo: string;
+  isEditing?: boolean;
   onMemoChange: (val: string) => void;
   onSave: (memoToSave: string) => void;
 }
 
 export const FreeMemoStep: React.FC<FreeMemoStepProps> = ({
   memo,
+  isEditing = false,
   onMemoChange,
   onSave,
 }) => {
+  const handlePass = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onSave("");
+  };
+
+  const handleSubmit = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onSave(memo);
+  };
+
   return (
-    <div>
-      <div className="mb-6">
+    <div className="flex flex-col flex-1 bg-[#f8fafc] p-4 font-sans">
+      <div className="mb-6 px-1">
         <h1 className="text-[24px] font-extrabold text-slate-800 tracking-tight mb-2 leading-snug">
           조금 더 남기고 싶은<br />이야기가 있나요?
         </h1>
@@ -24,7 +38,6 @@ export const FreeMemoStep: React.FC<FreeMemoStepProps> = ({
       </div>
 
       <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm space-y-4 mb-8">
-        {/* 자유 입력창 */}
         <textarea
           value={memo}
           onChange={(e) => onMemoChange(e.target.value)}
@@ -34,19 +47,23 @@ export const FreeMemoStep: React.FC<FreeMemoStepProps> = ({
 
         <div className="flex gap-3 pt-2">
           <button
-            onClick={() => onSave("")}
+            type="button"
+            onClick={handlePass}
             className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-2xl transition-colors cursor-pointer"
           >
             패스 (건너뛰기)
           </button>
           <button
-            onClick={() => onSave(memo)}
+            type="button"
+            onClick={handleSubmit}
             className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-2xl transition-colors shadow-md shadow-indigo-100 cursor-pointer"
           >
-            일기 저장하기
+            {isEditing ? "일기 수정" : "일기 저장하기"}
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+export default FreeMemoStep;

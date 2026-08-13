@@ -13,15 +13,20 @@ import {
   fetchMonthlyDiaries,
   fetchDiaryDetail,
   searchDiaries,
+  deleteDiaryRecord,
   MonthlyDiarySummary,
   SearchDiaryResult,
 } from "./services/api";
 
 interface DiaryScreenProps {
   onSelectUnwrittenDate?: (dateStr: string) => void;
+  onEditDiary?: (diaryId: number) => void;
 }
 
-export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate }) => {
+export const DiaryScreen: React.FC<DiaryScreenProps> = ({
+  onSelectUnwrittenDate,
+  onEditDiary,
+}) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [diaries, setDiaries] = useState<MonthlyDiarySummary[]>([]);
   const [selectedDiary, setSelectedDiary] = useState<any | null>(null);
@@ -35,21 +40,28 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
-  // 1. 월별 일기 목록 조회
+  const loadDiaries = async () => {
+    try {
+      const data = await fetchMonthlyDiaries(year, month);
+      setDiaries(data || []);
+    } catch (e) {
+      console.error("월별 일기 조회 에러:", e);
+      setDiaries([]);
+    }
+  };
+
   useEffect(() => {
-    const loadDiaries = async () => {
-      try {
-        const data = await fetchMonthlyDiaries(year, month);
-        setDiaries(data || []);
-      } catch (e) {
-        console.error("월별 일기 조회 에러:", e);
-        setDiaries([]);
-      }
-    };
     loadDiaries();
   }, [year, month]);
 
-  // 2. 일기 검색
+  const handlePrevMonth = () => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
   const handleSearch = async () => {
     if (!startDate && !endDate && !searchKeyword.trim()) {
       setSearchResults(null);
@@ -63,7 +75,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         endDate: endDate || undefined,
         keyword: searchKeyword.trim() || undefined,
       });
-      setSearchResults(results);
+      setSearchResults(results || []);
     } catch (e: any) {
       alert(e.message || "일기 검색 중 오류가 발생했습니다.");
     } finally {
@@ -81,18 +93,53 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
   const firstDay = new Date(year, month - 1, 1).getDay();
   const lastDate = new Date(year, month, 0).getDate();
 
-  // 가장 행복한 날 (가중 평균 최대치)
   const highestScoreDiary = diaries.reduce((max, item) => {
-    return item.weighted_avg > (max?.weighted_avg ?? -999) ? item : max;
+    return (item.weighted_avg ?? -999) > (max?.weighted_avg ?? -999) ? item : max;
   }, null as MonthlyDiarySummary | null);
 
-  // 3. 일기 상세 조회
   const openDiaryDetail = async (diaryId: number) => {
     try {
       const detail = await fetchDiaryDetail(diaryId);
       setSelectedDiary(detail);
     } catch (e: any) {
       alert(e.message || "일기 상세를 불러올 수 없습니다.");
+    }
+  };
+
+  // ✏️ 일기 수정 이벤트
+  const handleEditClick = () => {
+    if (!selectedDiary) return;
+    if (confirm("수정하시겠습니까?")) {
+      const diaryId = selectedDiary.diary_id;
+      setSelectedDiary(null);
+      if (onEditDiary) {
+        onEditDiary(diaryId);
+      }
+    }
+  };
+
+  // 🗑️ 일기 삭제 이벤트 (Soft Delete)
+  const handleDeleteClick = async () => {
+    if (!selectedDiary) return;
+    if (confirm("일기를 삭제하시겠습니까?")) {
+      try {
+        const diaryId = selectedDiary.diary_id;
+        const diaryDate = selectedDiary.diary_date || "";
+        const [, m, d] = diaryDate.split("-");
+
+        await deleteDiaryRecord(diaryId);
+        setSelectedDiary(null);
+
+        alert(`${parseInt(m, 10)}월 ${parseInt(d, 10)}일 일기가 삭제되었습니다.`);
+
+        // 달력 및 검색 결과 즉시 갱신
+        await loadDiaries();
+        if (searchResults) {
+          setSearchResults((prev) => prev?.filter((item) => item.diary_id !== diaryId) || []);
+        }
+      } catch (e: any) {
+        alert(e.message || "일기 삭제 실패");
+      }
     }
   };
 
@@ -134,7 +181,6 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
 
   return (
     <div className="flex flex-col flex-1 bg-[#f8fafc] p-4 font-sans relative">
-      {/* 1. 상단 다중 조건 검색 영역 */}
       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm space-y-3 mb-4 z-10">
         <div className="relative">
           <span className="absolute left-3.5 top-3 text-slate-400">🔍</span>
@@ -170,11 +216,10 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       </div>
 
-      {/* 2. 기본 달력 영역 */}
       <div className="flex-1 flex flex-col">
         <div className="flex justify-between items-center px-4 py-2 mb-2">
           <button
-            onClick={() => setCurrentDate(new Date(year, month - 2, 1))}
+            onClick={handlePrevMonth}
             className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer"
           >
             ‹
@@ -183,7 +228,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
             {year}년 {month}월
           </h2>
           <button
-            onClick={() => setCurrentDate(new Date(year, month, 1))}
+            onClick={handleNextMonth}
             className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer"
           >
             ›
@@ -216,11 +261,11 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
               const isFuture = dateStr > todayStr;
 
               const diary = diaries.find((d) => d.diary_date === dateStr);
-              const isHighest = highestScoreDiary?.diary_date === dateStr;
+              const isHighest = highestScoreDiary && highestScoreDiary.diary_date === dateStr && (highestScoreDiary.weighted_avg ?? 0) > 0;
 
               let bgStyle = "text-slate-600 hover:bg-slate-50";
               if (diary) {
-                const avg = diary.weighted_avg;
+                const avg = diary.weighted_avg ?? 0;
                 if (avg > 3) bgStyle = "bg-indigo-100 text-indigo-700 font-bold";
                 else if (avg < -3) bgStyle = "bg-amber-100 text-amber-700 font-bold";
                 else bgStyle = "bg-slate-100 text-slate-700 font-bold";
@@ -261,13 +306,12 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       </div>
 
-      {/* 3. 검색 결과 팝업 오버레이 */}
       {searchResults !== null && (
         <div className="absolute inset-x-4 top-[170px] bottom-4 bg-white/95 backdrop-blur-md p-5 rounded-[32px] border border-slate-100 shadow-2xl flex flex-col z-20 animate-in fade-in duration-200">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
             <div className="flex items-center gap-1.5 font-extrabold text-slate-800 text-sm">
               <span>:≡</span>
-              <span>검색 결과</span>
+              <span>검색 결과 ({searchResults.length}건)</span>
             </div>
             <button
               onClick={handleClearSearch}
@@ -307,7 +351,7 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
         </div>
       )}
 
-      {/* 4. 차트 모달 */}
+      {/* 4. 일기 상세 모달 (우측 상단 ✏️ 🗑️ 버튼 및 ✕ 닫기) */}
       {selectedDiary && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-sm rounded-[32px] p-6 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
@@ -322,12 +366,30 @@ export const DiaryScreen: React.FC<DiaryScreenProps> = ({ onSelectUnwrittenDate 
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => setSelectedDiary(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer"
-              >
-                ✕
-              </button>
+
+              {/* ✏️ 🗑️ 우측 상단 수정/삭제 버튼 */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleEditClick}
+                  className="p-1.5 hover:bg-slate-100 rounded-lg text-sm transition-colors cursor-pointer"
+                  title="일기 수정"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={handleDeleteClick}
+                  className="p-1.5 hover:bg-rose-50 rounded-lg text-sm transition-colors cursor-pointer"
+                  title="일기 삭제"
+                >
+                  🗑️
+                </button>
+                <button
+                  onClick={() => setSelectedDiary(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-lg ml-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center">
